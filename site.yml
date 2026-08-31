@@ -4,6 +4,17 @@
   connection: local
   gather_facts: false
 
+  # pre_tasks (not tasks) so this runs before any role touches the router.
+  pre_tasks:
+    - name: Wymagaj jawnego --limit — 'routers' obejmuje teraz i produkcję, i CHR
+      ansible.builtin.assert:
+        that:
+          - ansible_limit is defined
+        fail_msg: >-
+          Odkąd 'test' jest zagnieżdżone pod 'routers', bare site.yml trafia
+          jednocześnie w edge-router i chr-test. Uruchom z jawnym
+          --limit edge-router albo --limit test.
+
   # Every community.routeros.api* module opens its own API connection to the
   # router (there is no connection plugin — see docs/adr/0002-*). The shared
   # connection parameters are set once here instead of on each task.

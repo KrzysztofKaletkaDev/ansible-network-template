@@ -4,9 +4,23 @@
 # Copy this file, remove the .example extension (save it as hosts.yml) and
 # replace the example addresses with the real ones for your environment.
 #
-#   routers  - the production MikroTik router(s), reached over the RouterOS API
-#   test     - a RouterOS CHR instance in a local libvirt VM used to rehearse
-#              role changes before they touch real hardware (see docs/bootstrap/)
+#   routers            - EVERY RouterOS device this repo manages, production and
+#                        test alike (not "production only"). site.yml targets
+#                        this group, so group_vars/routers/ — including the
+#                        Vault — applies to both.
+#     edge-router      - the real edge router
+#     test / chr-test  - a RouterOS CHR VM for rehearsing changes; inherits
+#                        group_vars/routers/ and overrides only what differs
+#                        in group_vars/test/ (its own Vault password, no dead
+#                        man's switch)
+#
+# Because 'test' is nested under 'routers', a bare `ansible-playbook site.yml`
+# (and `--limit routers`) hits BOTH edge-router and chr-test. site.yml refuses
+# to run without an explicit --limit for that reason; `--limit routers` is still
+# allowed as a deliberate choice. Scope every run:
+#   --limit edge-router     production only
+#   --limit test            the CHR VM only
+#   --limit routers         both, on purpose
 # ==============================================================================
 
 all:
@@ -17,8 +31,9 @@ all:
           # Management address of the router (RouterOS API endpoint)
           ansible_host: 10.0.0.1
 
-    test:
-      hosts:
-        chr-test:
-          # Address of the CHR VM on the libvirt network (libvirt default range)
-          ansible_host: 192.168.122.50
+      children:
+        test:
+          hosts:
+            chr-test:
+              # Address of the CHR VM on the libvirt network (libvirt default range)
+              ansible_host: 192.168.122.50

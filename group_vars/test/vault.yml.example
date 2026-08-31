@@ -1,0 +1,14 @@
+---
+# ==============================================================================
+# ENCRYPTED SECRETS TEMPLATE — 'test' group (group_vars/test/vault.yml.example)
+# Copy to group_vars/test/vault.yml, set a real value, then:
+#   ansible-vault encrypt group_vars/test/vault.yml
+#
+# 'test' is a child of 'routers', so it inherits group_vars/routers/vault.yml.
+# This file overrides only what must differ for the CHR VM — starting with the
+# API password, which is deliberately NOT the production one.
+# ==============================================================================
+
+# Password for the CHR 'netadmin' account. Keep it different from the production
+# vault_routeros_api_password in group_vars/routers/vault.yml.
+vault_routeros_api_password: "CHR_TEST_PASSWORD_CHANGE_ME"
