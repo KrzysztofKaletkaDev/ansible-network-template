@@ -1,0 +1,32 @@
+---
+# ==============================================================================
+# MECHANISM A — "dead man's switch" for risky runs
+#
+# Included at the top of routeros_interfaces and routeros_firewall (via
+# include_role ... tasks_from: safety_snapshot.yml), gated by
+# routeros_enable_dead_mans_switch.
+#
+# It saves a config backup and schedules a rollback that fires in ~10 minutes.
+# If the run wedges the router and you lose the API session, the router reloads
+# the pre-run backup on its own. If the run is fine, disarm it afterwards:
+#   ansible-playbook -i inventory/hosts.yml site.yml --tags clear-rollback
+#
+# This is NOT a confirmed substitute for RouterOS Safe Mode — Safe Mode is bound
+# to the CLI/WinBox session, and whether it covers changes made over the API is
+# unverified (see CLAUDE.md, mechanism B).
+# ==============================================================================
+
+- name: Zrób kopię zapasową konfiguracji przed ryzykowną zmianą
+  community.routeros.api:
+    path: system backup
+    cmd: "save name=before-ansible-run dont-encrypt=yes"
+  changed_when: true
+
+- name: Uzbrój harmonogram wycofania zmian (dead man's switch)
+  community.routeros.api_modify:
+    path: system scheduler
+    data:
+      - name: ansible-rollback
+        interval: 10m
+        on-event: "/system backup load name=before-ansible-run"
+        comment: "Armed by Ansible — remove after a confirmed run (--tags clear-rollback)"

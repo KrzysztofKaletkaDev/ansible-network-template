@@ -1,0 +1,30 @@
+---
+# ==============================================================================
+# MECHANISM A — disarm the dead man's switch
+#
+# Run after a risky change (interfaces/firewall) has been applied AND
+# connectivity to the router is confirmed:
+#   ansible-playbook -i inventory/hosts.yml site.yml --tags clear-rollback
+#
+# Wired into routeros_common/tasks/main.yml with `tags: [clear-rollback, never]`
+# so it only runs when explicitly requested.
+# ==============================================================================
+
+- name: Pobierz wpisy harmonogramu
+  community.routeros.api:
+    path: system scheduler
+    query: ".id name"
+  register: routeros_common_schedulers
+  changed_when: false
+
+- name: Rozbrój harmonogram wycofania zmian (usuń wpis ansible-rollback)
+  community.routeros.api:
+    path: system scheduler
+    remove: "{{ item['.id'] }}"
+  loop: >-
+    {{ routeros_common_schedulers.msg
+       | default([])
+       | selectattr('name', 'equalto', 'ansible-rollback')
+       | list }}
+  loop_control:
+    label: "{{ item.name }}"

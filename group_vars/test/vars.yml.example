@@ -1,0 +1,12 @@
+---
+# ==============================================================================
+# TEST-GROUP OVERRIDES (group_vars/test/vars.yml.example)
+# Copy to group_vars/test/vars.yml. No secrets here — same *.example pattern as
+# the rest of the repo, just kept out of git so a local copy can be edited freely.
+# ==============================================================================
+
+# CHR has libvirt snapshots (virsh snapshot-create-as / snapshot-revert), so the
+# RouterOS-side backup + rollback scheduler from mechanism A would only get in
+# the way here: safety_snapshot.yml marks its backup task changed every run, so a
+# third pass could never report changed=0.
+routeros_enable_dead_mans_switch: false

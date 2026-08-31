@@ -16,3 +16,37 @@ routeros_identity: "edge-router"
 # (see docs/adr/0003-single-admin-account-over-dedicated-ansible-account.md).
 # Its password lives in group_vars/routers/vault.yml as vault_routeros_api_password.
 routeros_api_user: "netadmin"
+
+
+# --- routeros_common ----------------------------------------------------------
+
+# NTP servers for /system/ntp/client (RouterOS 7 servers table, declarative —
+# entries not listed here are removed).
+routeros_ntp_servers:
+  - address: "0.pool.ntp.org"
+  - address: "1.pool.ntp.org"
+
+# IANA time-zone name for /system/clock.
+routeros_timezone: "Europe/Warsaw"
+
+# RouterOS permission group for routeros_api_user.
+routeros_common_user_group: "full"
+
+# Mechanism A (dead man's switch) — see roles/routeros_common/tasks/safety_snapshot.yml.
+# On by default; overridden to false for the 'test' group (group_vars/test/vars.yml.example)
+# because CHR has its own libvirt snapshots and a RouterOS backup would only add
+# noise to the idempotence check.
+routeros_enable_dead_mans_switch: true
+
+# DEFERRED (tags: restrict-api): the address Ansible connects from. The
+# restrict-api run pins the API service to <this>/32. See roles/routeros_common/README.md.
+routeros_controller_ip: "10.0.0.100"
+
+# DEFERRED (tags: disable-admin): disable the built-in 'admin' account. Only set
+# true after the managed account is confirmed working, and run with --tags disable-admin.
+routeros_common_disable_admin: false
+
+# DEFERRED (tags: disable-mac-recovery): turn off MAC-Telnet / MAC-Winbox / MAC-ping.
+# This is the last way onto the router without a working IP and the box has no
+# serial console — only set true with or after disable-admin, never before.
+routeros_common_disable_mac_recovery: false

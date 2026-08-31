@@ -1,0 +1,33 @@
+---
+# ==============================================================================
+# DEFERRED HARDENING — tags: restrict-api, never
+#
+# Pins the RouterOS API service to a single source address (the control node).
+# A wrong routeros_controller_ip here makes the router unreachable to Ansible.
+#
+# Run it ONLY after a full pass has succeeded and the managed account is proven
+# to connect reliably:
+#   ansible-playbook -i inventory/hosts.yml site.yml --tags restrict-api
+#
+# See roles/routeros_common/README.md.
+# ==============================================================================
+
+- name: Sprawdź, że adres kontrolera jest realnym adresem IPv4 (nie placeholderem)
+  ansible.builtin.assert:
+    that:
+      - routeros_controller_ip is defined
+      - routeros_controller_ip != "10.0.0.100"
+      - routeros_controller_ip | regex_search('^([0-9]{1,3}\.){3}[0-9]{1,3}$')
+    fail_msg: >-
+      routeros_controller_ip must be the real IPv4 address the control node uses
+      to reach the router (not the .example placeholder 10.0.0.100) before
+      running with --tags restrict-api.
+    quiet: true
+
+- name: Ogranicz usługę API do adresu kontrolera
+  community.routeros.api_modify:
+    path: ip service
+    data:
+      - name: api
+        disabled: false
+        address: "{{ routeros_controller_ip }}/32"

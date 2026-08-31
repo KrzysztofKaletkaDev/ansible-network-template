@@ -1,0 +1,116 @@
+---
+# ==============================================================================
+# ROLE: routeros_common (roles/routeros_common/tasks/main.yml)
+# Baseline for the RouterOS edge router: identity, time, the admin/Ansible
+# account and management-service hardening.
+#
+# Three changes that can lock you out of the router are deliberately NOT run from
+# here on a normal pass — each behind its own `never` tag and a gating variable:
+#   - tasks/restrict_api_access.yml   (tags: restrict-api, never)
+#         pins the API service to a single source address
+#   - tasks/disable_mac_recovery.yml  (tags: disable-mac-recovery, never)
+#         drops MAC-Telnet/MAC-Winbox — the last way in without a working IP
+#   - the built-in 'admin' teardown   (tags: disable-admin, never)
+#         needs the managed account confirmed first
+# See roles/routeros_common/README.md for the staged procedure.
+# ==============================================================================
+
+- name: Ustaw nazwę (identity) routera
+  community.routeros.api_modify:
+    path: system identity
+    data:
+      - name: "{{ routeros_identity }}"
+
+- name: Ustaw strefę czasową
+  community.routeros.api_modify:
+    path: system clock
+    data:
+      - time-zone-name: "{{ routeros_timezone }}"
+        time-zone-autodetect: false
+
+- name: Włącz klienta NTP
+  community.routeros.api_modify:
+    path: system ntp client
+    data:
+      - enabled: true
+
+- name: Skonfiguruj serwery NTP (deklaratywnie)
+  community.routeros.api_modify:
+    path: system ntp client servers
+    handle_absent_entries: remove
+    data: "{{ routeros_ntp_servers }}"
+
+- name: Zapewnij konto administracyjne z pełnymi uprawnieniami
+  # handle_absent_entries: ignore (default) — never touch 'admin' or other users,
+  # only ensure this one entry. Password is set during the one-time bootstrap
+  # (docs/bootstrap/), not rewritten here, so a Vault/reality drift cannot lock
+  # Ansible out mid-run.
+  community.routeros.api_modify:
+    path: user
+    data:
+      - name: "{{ routeros_api_user }}"
+        group: "{{ routeros_common_user_group }}"
+        comment: "Ansible / interactive login (managed)"
+
+- name: Wyłącz nieużywane usługi zarządzania (zostaw API, SSH, Winbox)
+  # Only 'disabled' is set — a source-address restriction on 'api' added later by
+  # the restrict-api run is left intact (handle_entries_content defaults to ignore).
+  community.routeros.api_modify:
+    path: ip service
+    data:
+      - {name: telnet, disabled: true}
+      - {name: ftp, disabled: true}
+      - {name: www, disabled: true}
+      - {name: www-ssl, disabled: true}
+      - {name: api-ssl, disabled: true}
+      - {name: api, disabled: false}
+      - {name: ssh, disabled: false}
+      - {name: winbox, disabled: false}
+
+- name: Wymuś silną kryptografię dla SSH
+  community.routeros.api_modify:
+    path: ip ssh
+    data:
+      - strong-crypto: true
+
+- name: Wyłącz RoMON
+  community.routeros.api_modify:
+    path: tool romon
+    data:
+      - enabled: false
+
+- name: Zaimportuj (odroczone) wyłączenie MAC-server/MAC-Winbox
+  # MAC-Telnet/MAC-Winbox is the only way onto the router without a working IP,
+  # and this box has no serial console. Only runs when
+  # routeros_common_disable_mac_recovery is explicitly true — do it with or after
+  # `disable-admin`, never before. See roles/routeros_common/README.md.
+  ansible.builtin.import_tasks: disable_mac_recovery.yml
+  when: routeros_common_disable_mac_recovery | bool
+  tags:
+    - disable-mac-recovery
+    - never
+
+- name: Wyłącz wbudowane konto admin
+  # Deferred: runs only when routeros_common_disable_admin is explicitly true AND
+  # `--tags disable-admin` is passed, after the managed account is confirmed.
+  community.routeros.api_modify:
+    path: user
+    data:
+      - name: admin
+        disabled: true
+  when: routeros_common_disable_admin | bool
+  tags:
+    - disable-admin
+    - never
+
+- name: Zaimportuj (odroczone) ograniczenie dostępu do API
+  ansible.builtin.import_tasks: restrict_api_access.yml
+  tags:
+    - restrict-api
+    - never
+
+- name: Zaimportuj (na żądanie) rozbrojenie dead man's switch
+  ansible.builtin.import_tasks: clear_rollback.yml
+  tags:
+    - clear-rollback
+    - never

@@ -18,4 +18,5 @@
   # Roles are added one per commit, in dependency order:
   #   routeros_common -> routeros_interfaces -> routeros_dhcp
   #                   -> routeros_dns -> routeros_firewall
-  roles: []
+  roles:
+    - routeros_common

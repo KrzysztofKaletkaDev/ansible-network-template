@@ -1,0 +1,29 @@
+---
+# ==============================================================================
+# DEFERRED HARDENING — tags: disable-mac-recovery, never
+#
+# Turns off MAC-Telnet / MAC-Winbox / MAC-ping. These are the only way to reach
+# the router when it has no working IP address, and this hardware has no serial
+# console — so switching them off removes the last local recovery path.
+#
+# Run it only with or after `disable-admin`, once the managed account and normal
+# IP connectivity are proven, and never as part of a normal pass:
+#   ansible-playbook -i inventory/hosts.yml site.yml --tags disable-mac-recovery
+#
+# See roles/routeros_common/README.md.
+# ==============================================================================
+
+- name: Ogranicz MAC-server (Telnet po MAC) do żadnego interfejsu
+  community.routeros.api_modify:
+    path: "{{ item }}"
+    data:
+      - allowed-interface-list: none
+  loop:
+    - tool mac-server
+    - tool mac-server mac-winbox
+
+- name: Wyłącz MAC-ping
+  community.routeros.api_modify:
+    path: tool mac-server ping
+    data:
+      - enabled: false
