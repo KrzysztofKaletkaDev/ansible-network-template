@@ -1,0 +1,63 @@
+---
+name: Lint
+
+# There is no Molecule job: RouterOS does not run in a plain container, and a CHR
+# instance needs KVM, which GitHub-hosted runners do not provide. Roles are
+# rehearsed on a local CHR VM instead (see docs/bootstrap/).
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  lint:
+    name: ansible-lint + yamllint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repozytorium
+        uses: actions/checkout@v4
+
+      - name: Ustaw Pythona
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Zainstaluj zależności deweloperskie
+        run: pip install -r requirements-dev.txt
+
+      - name: Zainstaluj kolekcje Ansible
+        run: ansible-galaxy collection install -r collections/requirements.yml
+
+      - name: Uruchom ansible-lint
+        run: ansible-lint
+
+      - name: Uruchom yamllint
+        run: yamllint -c .yamllint .
+
+  syntax-check:
+    name: ansible-playbook --syntax-check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repozytorium
+        uses: actions/checkout@v4
+
+      - name: Ustaw Pythona
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Zainstaluj zależności deweloperskie
+        run: pip install -r requirements-dev.txt
+
+      - name: Zainstaluj kolekcje Ansible
+        run: ansible-galaxy collection install -r collections/requirements.yml
+
+      - name: Przygotuj przykładowe pliki inwentarza i zmiennych
+        run: |
+          cp inventory/hosts.yml.example inventory/hosts.yml
+          cp group_vars/all/vars.yml.example group_vars/all/vars.yml
+          cp group_vars/routers/vault.yml.example group_vars/routers/vault.yml
+
+      - name: Sprawdź składnię site.yml
+        run: ansible-playbook --syntax-check site.yml

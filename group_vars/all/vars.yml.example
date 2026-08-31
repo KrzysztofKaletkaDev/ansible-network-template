@@ -1,0 +1,18 @@
+---
+# ==============================================================================
+# MAIN INFRASTRUCTURE VARIABLES (group_vars/all/vars.yml.example)
+# Copy this file to group_vars/all/vars.yml and adjust the values to your setup.
+#
+# This file grows per role: each role commit appends its own block of variables
+# here. Secrets never live in this file — they go into
+# group_vars/routers/vault.yml (Ansible Vault). See group_vars/routers/vault.yml.example.
+# ==============================================================================
+
+# RouterOS system identity (the name shown in the CLI prompt and WinBox title).
+routeros_identity: "edge-router"
+
+# RouterOS account Ansible authenticates as over the API. This is the same
+# account used for interactive SSH login — there is no separate service account
+# (see docs/adr/0003-single-admin-account-over-dedicated-ansible-account.md).
+# Its password lives in group_vars/routers/vault.yml as vault_routeros_api_password.
+routeros_api_user: "netadmin"

@@ -1,0 +1,24 @@
+---
+# ==============================================================================
+# INVENTORY TEMPLATE (inventory/hosts.yml.example)
+# Copy this file, remove the .example extension (save it as hosts.yml) and
+# replace the example addresses with the real ones for your environment.
+#
+#   routers  - the production MikroTik router(s), reached over the RouterOS API
+#   test     - a RouterOS CHR instance in a local libvirt VM used to rehearse
+#              role changes before they touch real hardware (see docs/bootstrap/)
+# ==============================================================================
+
+all:
+  children:
+    routers:
+      hosts:
+        edge-router:
+          # Management address of the router (RouterOS API endpoint)
+          ansible_host: 10.0.0.1
+
+    test:
+      hosts:
+        chr-test:
+          # Address of the CHR VM on the libvirt network (libvirt default range)
+          ansible_host: 192.168.122.50

@@ -1,0 +1,14 @@
+---
+# ==============================================================================
+# ENCRYPTED SECRETS TEMPLATE (group_vars/routers/vault.yml.example)
+# Copy this file to group_vars/routers/vault.yml, fill in real values, then:
+#   ansible-vault encrypt group_vars/routers/vault.yml
+#
+# The decrypted vault.yml is never committed — .gitignore enforces this.
+# This file grows per role, in step with group_vars/all/vars.yml.example.
+# ==============================================================================
+
+# Password for the RouterOS account Ansible uses (routeros_api_user). The same
+# account is used for interactive SSH login (key-based; this password is the
+# API credential).
+vault_routeros_api_password: "CHANGE_ME_STRONG_PASSWORD"

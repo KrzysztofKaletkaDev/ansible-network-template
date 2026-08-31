@@ -1,0 +1,8 @@
+# Control-node Python dependencies for developing and linting this repo.
+# librouteros is the transport the community.routeros.api* modules use; on a
+# PEP-668 controller install it with: pip install librouteros --break-system-packages
+ansible-core>=2.15,<2.18
+ansible-lint>=24.9
+yamllint>=1.35
+pre-commit>=3.7
+librouteros>=3.2

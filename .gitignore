@@ -1,0 +1,45 @@
+# ==========================================
+# Ansible Temporary & Local Files
+# ==========================================
+*.retry
+*.log
+.vault_pass
+.cache/
+molecule/**/.molecule/
+
+# Galaxy collections installed into a playbook-adjacent path
+collections/ansible_collections/
+
+# ===================================================
+# Real Inventory & Environment Variables (SECURITY)
+# Only allow template files *.example
+# ===================================================
+inventory/hosts.yml
+group_vars/**/*.yml
+!group_vars/**/*.yml.example
+!inventory/*.yml.example
+
+# Sensitive Ansible Vault files
+group_vars/**/vault.yml
+host_vars/**/vault.yml
+
+# ==========================================
+# RouterOS CHR test-VM images (see docs/bootstrap/)
+# ==========================================
+docs/bootstrap/*.img
+docs/bootstrap/*.img.zip
+docs/bootstrap/*.qcow2
+
+# ==========================================
+# Editor & OS Files
+# ==========================================
+.idea/
+.vscode/*
+!.vscode/settings.json
+.DS_Store
+*.swp
+*.un~
+.venv/
+.vagrant/
+.ansible/
+.claude/

@@ -1,0 +1,20 @@
+---
+# Run `pre-commit install` once after cloning the repo to activate the hooks.
+# From then on, every `git commit` will automatically run the lint below.
+# Updating hook versions: `pre-commit autoupdate`
+
+repos:
+  - repo: https://github.com/ansible/ansible-lint
+    rev: v26.6.0
+    hooks:
+      - id: ansible-lint
+        language_version: python3.12
+        files: \.(yaml|yml)$
+        # Skip .example files — these are templates with intentionally placeholder values
+        exclude: '\.example$'
+
+  - repo: https://github.com/adrienverge/yamllint
+    rev: v1.38.0
+    hooks:
+      - id: yamllint
+        args: ["-c", ".yamllint"]

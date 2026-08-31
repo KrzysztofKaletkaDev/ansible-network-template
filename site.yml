@@ -1,0 +1,21 @@
+---
+- name: Konfiguracja routera brzegowego MikroTik RouterOS
+  hosts: routers
+  connection: local
+  gather_facts: false
+
+  # Every community.routeros.api* module opens its own API connection to the
+  # router (there is no connection plugin — see docs/adr/0002-*). The shared
+  # connection parameters are set once here instead of on each task.
+  module_defaults:
+    group/community.routeros.api:
+      hostname: "{{ ansible_host }}"
+      username: "{{ routeros_api_user }}"
+      password: "{{ vault_routeros_api_password }}"
+      tls: true
+      validate_certs: false
+
+  # Roles are added one per commit, in dependency order:
+  #   routeros_common -> routeros_interfaces -> routeros_dhcp
+  #                   -> routeros_dns -> routeros_firewall
+  roles: []

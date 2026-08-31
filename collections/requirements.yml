@@ -1,0 +1,8 @@
+---
+collections:
+  # RouterOS API modules (api, api_modify, api_info, api_find_and_modify) and the
+  # module_defaults action group group/community.routeros.api used in site.yml.
+  # >=3.0.0 for the api_modify path coverage this repo relies on
+  # (interface bridge/vlan/wireguard, ip dns, ip firewall *, tool netwatch).
+  - name: community.routeros
+    version: ">=3.0.0"
