@@ -48,6 +48,16 @@ imperative actions that have no API path (e.g. `/system/routerboard/upgrade`).
 - No SSH transport for configuration means no `ansible_user` / `become` and no
   host-key management for config runs; the connection surface is the API service
   alone, locked to one source address.
+- The connection runs over the **plain API** (`tls: false`, port 8728), not
+  api-ssl. api-ssl (8729) needs a certificate assigned to the service; with none,
+  `librouteros` fails the handshake outright (`SSLV3_ALERT_HANDSHAKE_FAILURE`) —
+  confirmed on the CHR VM. Provisioning a certificate just to wrap a
+  control-node-to-router hop on the LAN is not worth it here: the API service is
+  already pinned to the control node's address (`restrict-api`), and the LAN is
+  the trust boundary — the same call `ansible-homelab-template` ADR-0007 makes
+  for exposing Blocky's DNS and metrics ports to the LAN unencrypted. If this
+  template is ever run across an untrusted segment, assign a certificate and flip
+  `tls` back on before that happens.
 - `api_modify`'s `handle_absent_entries: remove` / `handle_entries_content:
   remove` genuinely delete entries not present in `data`. On a shared path like
   `ip firewall filter` that will silently drop a rule someone added by hand — the
