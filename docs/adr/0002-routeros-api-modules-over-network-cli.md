@@ -70,7 +70,13 @@ imperative actions that have no API path (e.g. `/system/routerboard/upgrade`).
   path that does not need a working IP — but only as a deferred, explicitly
   tagged step (`disable-mac-recovery`), never by default, precisely because it
   narrows this fallback further.
-- Safe Mode is a CLI/WinBox-session feature. Whether a Safe Mode session started
-  in Winbox reverts changes made over the API is **unverified**; until it is
-  tested on the CHR VM, the dead man's switch (mechanism A) is treated as the
-  only real safety net for runs against hardware.
+- Safe Mode is a CLI/WinBox-session feature, but it is **not** scoped to changes
+  made from its own session. Tested on the CHR VM: with a Safe Mode session held
+  open in a terminal, an `api_modify` run over a *separate* API connection had
+  its changes tracked by that Safe Mode session and rolled back when the session
+  dropped. So Safe Mode is a real second safety net for API-driven runs, not
+  just the dead man's switch (mechanism A).
+  Recommendation for hardware runs of `routeros_interfaces` and
+  `routeros_firewall`: open a Safe Mode session (`/system/safe-mode` or Ctrl+X in
+  a terminal) in parallel with the Ansible run and keep it open until
+  connectivity is confirmed — belt-and-braces with the dead man's switch.
