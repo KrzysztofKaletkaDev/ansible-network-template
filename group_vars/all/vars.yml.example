@@ -98,3 +98,47 @@ routeros_wg_peers:
   - {name: tablet, allowed_address: "10.100.0.3/32"}
   - {name: laptop, allowed_address: "10.100.0.4/32"}
   - {name: phone-spare, allowed_address: "10.100.0.5/32"}
+
+
+# --- routeros_interfaces: VLAN segmentation (edge only) ---------------------
+
+# The two VLANs the LAN is split into. id 1 = main (today's flat LAN, untagged
+# on the access ports); id 20 = servers. The ids are a design choice, not
+# sensitive; the addresses here are placeholders (10.0.0.0/24, 10.0.20.0/24).
+routeros_vlans:
+  main:
+    id: 1
+    subnet: "10.0.0.0/24"
+    gateway: "10.0.0.1"
+  servers:
+    id: 20
+    subnet: "10.0.20.0/24"
+    gateway: "10.0.20.1"
+
+# RB5009 -> CRS310 trunk port: tagged for both VLANs, no access pvid. It is
+# deliberately NOT in routeros_lan_bridge_ports — a dedicated task adds it.
+routeros_interfaces_trunk_port: "ether2"
+
+# Name of the server-VLAN sub-interface on the bridge — carries the router's
+# servers-VLAN gateway address and is the SERVERS interface-list member.
+routeros_servers_vlan_interface: "vlan{{ routeros_vlans.servers.id }}-servers"
+
+# Server-VLAN host prefix, computed once by string-splitting the /24. A shape
+# check only, which is enough here — no ansible.utils.ipaddr dependency.
+routeros_servers_vlan_prefix: >-
+  {{ routeros_vlans.servers.subnet.split('/')[0].split('.')[0:3] | join('.') }}
+
+# Server-VLAN hosts — one list, later feeding both DHCP reservations and
+# firewall rules. Real MACs live in the local group_vars/all/vars.yml; these
+# are fake.
+routeros_servers_vlan_hosts:
+  - {name: server-a, mac: "AA:BB:CC:DD:EE:01", host_octet: 10}
+  - {name: server-b, mac: "AA:BB:CC:DD:EE:02", host_octet: 11}
+
+# Named address references for readable firewall rules (used by routeros_firewall).
+routeros_qnap_native_ip: >-
+  {{ routeros_servers_vlan_prefix }}.{{ routeros_servers_vlan_hosts
+     | selectattr('name', 'equalto', 'server-a') | map(attribute='host_octet') | first }}
+routeros_alma_ip: >-
+  {{ routeros_servers_vlan_prefix }}.{{ routeros_servers_vlan_hosts
+     | selectattr('name', 'equalto', 'server-b') | map(attribute='host_octet') | first }}

@@ -11,10 +11,14 @@ The edge router's data plane. Runs only where `routeros_device_class == 'edge'`
 - WireGuard road-warrior server (`routeros_wg_interface`, `routeros_wg_address`)
   with one peer per entry in `routeros_wg_peers`
 - TCP MSS clamping (`clamp-to-pmtu`) on the PPPoE and WireGuard interfaces
-- the `LAN` / `WAN` interface lists used by the dhcp, dns and firewall roles
+- bridge VLAN filtering with a two-VLAN table (`main` id 1, `servers` id 20),
+  the tagged RB5009 → CRS310 trunk port (`routeros_interfaces_trunk_port`), the
+  `servers` VLAN sub-interface and its gateway address
+- the `LAN` / `WAN` / `SERVERS` interface lists used by the dhcp, dns and
+  firewall roles (`vlan-servers` is in both `LAN` and `SERVERS`)
 
-VLAN filtering, the bridge VLAN table and the RB5009 → CRS310 trunk port are
-**not** in this role yet — a follow-up commit adds them.
+The firewall rules that enforce segmentation between `main` and `servers` live
+in the `routeros_firewall` role.
 
 ## Secrets
 

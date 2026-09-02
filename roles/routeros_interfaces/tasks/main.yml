@@ -1,21 +1,20 @@
 ---
 # ==============================================================================
 # ROLE: routeros_interfaces (roles/routeros_interfaces/tasks/main.yml)
-# The edge router's data plane: the LAN bridge, the tagged-VLAN PPPoE uplink,
-# the WireGuard road-warrior server, TCP MSS clamping on both tunnelled links,
-# and the LAN / WAN interface lists the dhcp, dns and firewall roles build on.
+# The edge router's data plane: the LAN bridge with VLAN filtering (main +
+# servers) and the CRS310 trunk port, the tagged-VLAN PPPoE uplink, the
+# WireGuard road-warrior server, TCP MSS clamping on both tunnelled links, and
+# the LAN / WAN / SERVERS interface lists the dhcp, dns and firewall roles use.
 #
 # This is the most lockout-prone role in the repo:
 #   - mechanism A (dead man's switch) is pulled in first, below;
 #   - on hardware, keep a Safe Mode session open alongside the run (mechanism B);
 #   - keep the port you are physically connected through OUT of
 #     routeros_lan_bridge_ports until connectivity via the bridge address is
-#     confirmed, then add it in a separate run (mechanism C).
+#     confirmed, then add it in a separate run (mechanism C);
+#   - enabling vlan-filtering (below) is the single riskiest step — the bridge
+#     starts enforcing the VLAN table the instant it flips on.
 # See CLAUDE.md and roles/routeros_interfaces/README.md.
-#
-# Scope note: this role currently brings up a plain untagged LAN bridge. VLAN
-# filtering, the bridge VLAN table and the RB5009 -> CRS310 trunk port are added
-# in a follow-up commit.
 # ==============================================================================
 
 - name: Uzbrój dead man's switch przed zmianą warstwy 2/3 (mechanizm A)
@@ -31,9 +30,6 @@
     path: interface bridge
     data:
       - name: "{{ routeros_lan_bridge }}"
-        # Stays off here. A follow-up commit turns it on together with the
-        # bridge VLAN table and the trunk port.
-        vlan-filtering: false
         comment: "Managed by Ansible (routeros_interfaces)"
 
 - name: Podłącz porty dostępowe (untagged) do mostka LAN
@@ -151,10 +147,80 @@
       - name: WAN
 
 - name: Przypisz interfejsy do list LAN i WAN
-  # The server VLAN joins LAN (and SERVERS) in a follow-up commit.
+  # The server VLAN adds itself to LAN and SERVERS further down, once its
+  # sub-interface exists.
   community.routeros.api_modify:
     path: interface list member
     data:
       - {list: LAN, interface: "{{ routeros_lan_bridge }}"}
       - {list: LAN, interface: "{{ routeros_wg_interface }}"}
       - {list: WAN, interface: "{{ routeros_pppoe_interface }}"}
+
+# --- VLAN filtering, server VLAN, trunk port ------------------------------
+# Order matters. The moment vlan-filtering flips on, the bridge enforces the
+# VLAN table and any port missing from it goes dark. On hardware keep the dead
+# man's switch (mechanism A) and a Safe Mode session up for this stretch.
+
+- name: Włącz filtrowanie VLAN na mostku LAN
+  community.routeros.api_modify:
+    path: interface bridge
+    data:
+      - name: "{{ routeros_lan_bridge }}"
+        vlan-filtering: true
+
+- name: Zbuduj tablicę VLAN (main + servers) na mostku LAN
+  # Fully declarative: handle_absent_entries=remove drops any static VLAN row
+  # not listed here (dynamic rows learned by vlan-filtering are left alone).
+  # 'tagged' includes the bridge itself so the CPU keeps both VLANs — without
+  # that, the router loses its address on bridge-lan once filtering is enforced.
+  community.routeros.api_modify:
+    path: interface bridge vlan
+    handle_absent_entries: remove
+    data:
+      - bridge: "{{ routeros_lan_bridge }}"
+        vlan-ids: "{{ routeros_vlans.main.id }}"
+        untagged: "{{ routeros_lan_bridge_ports | join(',') }}"
+        tagged: "{{ [routeros_interfaces_trunk_port, routeros_lan_bridge] | join(',') }}"
+      - bridge: "{{ routeros_lan_bridge }}"
+        vlan-ids: "{{ routeros_vlans.servers.id }}"
+        tagged: "{{ [routeros_interfaces_trunk_port, routeros_lan_bridge] | join(',') }}"
+
+- name: Dodaj port trunku (tylko tagged) do mostka LAN
+  # No access pvid — this port carries only tagged frames, to the CRS310.
+  community.routeros.api_modify:
+    path: interface bridge port
+    data:
+      - bridge: "{{ routeros_lan_bridge }}"
+        interface: "{{ routeros_interfaces_trunk_port }}"
+
+- name: Utwórz interfejs VLAN dla sieci serwerowej
+  community.routeros.api_modify:
+    path: interface vlan
+    data:
+      - name: "{{ routeros_servers_vlan_interface }}"
+        interface: "{{ routeros_lan_bridge }}"
+        vlan-id: "{{ routeros_vlans.servers.id }}"
+        comment: "Managed by Ansible (routeros_interfaces)"
+
+- name: Nadaj sieci serwerowej adres bramy
+  community.routeros.api_modify:
+    path: ip address
+    data:
+      - address: "{{ routeros_vlans.servers.gateway }}/24"
+        interface: "{{ routeros_servers_vlan_interface }}"
+        comment: "Managed by Ansible (routeros_interfaces)"
+
+- name: Dodaj listę interfejsów SERVERS
+  community.routeros.api_modify:
+    path: interface list
+    data:
+      - name: SERVERS
+
+- name: Przypisz sieć serwerową do list LAN i SERVERS
+  # vlan-servers is in BOTH lists: LAN (so the DoH/DoT/:53 rules reach it) and
+  # SERVERS (the segmentation target). The ('list','interface') PK allows both.
+  community.routeros.api_modify:
+    path: interface list member
+    data:
+      - {list: LAN, interface: "{{ routeros_servers_vlan_interface }}"}
+      - {list: SERVERS, interface: "{{ routeros_servers_vlan_interface }}"}
