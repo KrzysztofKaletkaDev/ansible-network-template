@@ -27,10 +27,12 @@
       password: "{{ vault_routeros_api_password }}"
       tls: false
 
-  # Roles are added one per commit, in dependency order:
-  #   routeros_common -> routeros_interfaces -> routeros_dhcp
-  #                   -> routeros_dns -> routeros_firewall
+  # routeros_common runs on every RouterOS device. The rest are gated by
+  # device class: the edge router gets routeros_interfaces -> routeros_dhcp
+  # -> routeros_dns -> routeros_firewall; the CRS310 gets routeros_switch.
   roles:
     - routeros_common
     - role: routeros_interfaces
       when: routeros_device_class == 'edge'
+    - role: routeros_switch
+      when: routeros_device_class == 'switch'

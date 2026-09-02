@@ -1,0 +1,138 @@
+---
+# ==============================================================================
+# ROLE: routeros_switch (roles/routeros_switch/tasks/main.yml)
+# The CRS310's data plane: a bridge with VLAN filtering whose VLAN table mirrors
+# the RB5009's (main id 1, servers id 20), per-port access PVIDs, the tagged
+# trunk back to the edge router, and the switch's own management address on the
+# server VLAN.
+#
+# routeros_common runs on this host too (site.yml, no device-class guard) — it
+# handles identity, time, the account and service hardening. This role is only
+# the VLAN / switching logic. Runs where routeros_device_class == 'switch'.
+#
+# Lockout notes (this box also has no serial console):
+#   - mechanism A (dead man's switch) is pulled in first, below;
+#   - "Włącz filtrowanie VLAN" is the riskiest step — the switch chip starts
+#     enforcing the table at once; a wrong table cuts management over the trunk;
+#   - the first hardware run happens with the switch cabled straight to a laptop,
+#     NOT over the trunk (the trunk is tagged-only) — see docs/bootstrap/README.md.
+# ==============================================================================
+
+- name: Uzbrój dead man's switch przed zmianą VLAN na switchu (mechanizm A)
+  ansible.builtin.include_role:
+    name: routeros_common
+    tasks_from: safety_snapshot.yml
+  when: routeros_enable_dead_mans_switch | bool
+
+# --- bridge + ports --------------------------------------------------------
+
+- name: Zapewnij mostek switcha
+  community.routeros.api_modify:
+    path: interface bridge
+    data:
+      - name: "{{ routeros_switch_bridge }}"
+        comment: "Managed by Ansible (routeros_switch)"
+
+- name: Ustaw PVID portów dostępowych VLAN main
+  # One entry per call: handle_absent_entries defaults to ignore, so a port
+  # dropped from the list is not reset — do that by hand.
+  community.routeros.api_modify:
+    path: interface bridge port
+    data:
+      - bridge: "{{ routeros_switch_bridge }}"
+        interface: "{{ item }}"
+        pvid: "{{ routeros_vlans.main.id }}"
+  loop: "{{ routeros_switch_main_vlan_ports }}"
+
+- name: Ustaw PVID portów dostępowych VLAN servers
+  community.routeros.api_modify:
+    path: interface bridge port
+    data:
+      - bridge: "{{ routeros_switch_bridge }}"
+        interface: "{{ item }}"
+        pvid: "{{ routeros_vlans.servers.id }}"
+  loop: "{{ routeros_switch_servers_vlan_ports }}"
+
+- name: Dodaj port trunku (tylko tagged) do mostka switcha
+  # No access PVID — this port carries only tagged frames, to the RB5009.
+  community.routeros.api_modify:
+    path: interface bridge port
+    data:
+      - bridge: "{{ routeros_switch_bridge }}"
+        interface: "{{ routeros_switch_trunk_port }}"
+
+# --- VLAN table (mirrors the RB5009) -------------------------------------
+
+- name: Zbuduj lustrzaną tablicę VLAN na mostku switcha
+  # Fully declarative: handle_absent_entries=remove drops any static VLAN row
+  # not listed here (dynamic rows are left alone). The bridge itself is tagged
+  # on the servers VLAN only — that is the VLAN that carries the switch's
+  # management address; it does not need to be on VLAN main.
+  community.routeros.api_modify:
+    path: interface bridge vlan
+    handle_absent_entries: remove
+    data:
+      - bridge: "{{ routeros_switch_bridge }}"
+        vlan-ids: "{{ routeros_vlans.main.id }}"
+        untagged: "{{ routeros_switch_main_vlan_ports | join(',') }}"
+        tagged: "{{ routeros_switch_trunk_port }}"
+      - bridge: "{{ routeros_switch_bridge }}"
+        vlan-ids: "{{ routeros_vlans.servers.id }}"
+        untagged: "{{ routeros_switch_servers_vlan_ports | join(',') }}"
+        tagged: "{{ [routeros_switch_trunk_port, routeros_switch_bridge] | join(',') }}"
+
+# --- management address on the server VLAN ------------------------------
+
+- name: Utwórz interfejs VLAN zarządzania (sieć serwerowa)
+  community.routeros.api_modify:
+    path: interface vlan
+    data:
+      - name: "{{ routeros_servers_vlan_interface }}"
+        interface: "{{ routeros_switch_bridge }}"
+        vlan-id: "{{ routeros_vlans.servers.id }}"
+        comment: "Managed by Ansible (routeros_switch)"
+
+- name: Nadaj switchowi adres zarządzania w sieci serwerowej
+  community.routeros.api_modify:
+    path: ip address
+    data:
+      - address: "{{ routeros_switch_mgmt_address }}"
+        interface: "{{ routeros_servers_vlan_interface }}"
+        comment: "Managed by Ansible (routeros_switch)"
+
+- name: Ustaw trasę domyślną switcha przez bramę sieci serwerowej
+  # ip route has no primary key in api_modify — matched by comment on re-runs.
+  # The factory DHCP client on the bare bridge must be removed during bootstrap
+  # (it stops working once management moves onto the tagged server VLAN).
+  community.routeros.api_modify:
+    path: ip route
+    data:
+      - dst-address: "0.0.0.0/0"
+        gateway: "{{ routeros_vlans.servers.gateway }}"
+        comment: "ansible:default-route"
+
+# --- enforce the VLAN table -------------------------------------------
+
+- name: Włącz filtrowanie VLAN na mostku switcha
+  # Riskiest step in the role. Everything above must be in place first.
+  community.routeros.api_modify:
+    path: interface bridge
+    data:
+      - name: "{{ routeros_switch_bridge }}"
+        vlan-filtering: true
+
+# --- interface lists (parity with the edge; management ACLs later) -----
+
+- name: Utwórz listy interfejsów na switchu
+  community.routeros.api_modify:
+    path: interface list
+    data:
+      - name: LAN
+      - name: SERVERS
+
+- name: Przypisz interfejs zarządzania do list LAN i SERVERS
+  community.routeros.api_modify:
+    path: interface list member
+    data:
+      - {list: LAN, interface: "{{ routeros_servers_vlan_interface }}"}
+      - {list: SERVERS, interface: "{{ routeros_servers_vlan_interface }}"}

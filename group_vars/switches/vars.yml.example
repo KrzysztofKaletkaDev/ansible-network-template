@@ -11,19 +11,29 @@
 # device regardless.
 routeros_device_class: "switch"
 
-# --- CRS310 port layout (used by routeros_switch, added in a later commit) -----
-routeros_switch_identity: "crs310"
+# Overrides routeros_identity from group_vars/all (which is the edge router's).
+routeros_identity: "crs310"
+
+# --- CRS310 VLAN / port layout (used by routeros_switch) ----------------------
+
+# The bridge this role manages. "bridge" is the CRS3xx factory bridge name.
+routeros_switch_bridge: "bridge"
+
+# Switch management address, on the server VLAN. The gateway and VLAN id come
+# from routeros_vlans.servers (group_vars/all). Keep this in sync with the
+# crs310 ansible_host in inventory/hosts.yml.
+routeros_switch_mgmt_address: "10.0.20.2/24"
 
 # Trunk port to the edge router (tagged: VLAN main + VLAN servers). Not an
 # access port — added on its own, never via the *_vlan_ports loops.
 routeros_switch_trunk_port: "ether1"
 
-# Access ports, untagged VLAN main (Deco + spare)
+# Access ports, untagged VLAN main
 routeros_switch_main_vlan_ports:
   - ether2
   - ether3
 
-# Access ports, untagged VLAN servers (QNAP + alma, mini-PC, iMac, spares)
+# Access ports, untagged VLAN servers
 routeros_switch_servers_vlan_ports:
   - ether4
   - ether5

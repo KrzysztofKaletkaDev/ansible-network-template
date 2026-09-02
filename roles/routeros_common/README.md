@@ -1,6 +1,7 @@
 # routeros_common
 
-Baseline configuration for the RouterOS edge router:
+Baseline configuration for every RouterOS device in this repo (the edge router
+and the CRS310 switch):
 
 - `system identity`, `system clock` timezone, `system ntp client` + servers
 - the admin/Ansible account (`routeros_api_user`), ensured at group `full`

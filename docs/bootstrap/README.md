@@ -38,6 +38,10 @@ are git-ignored.
   interfaces the CHR VM does not have — e.g. `ether3`–`ether8` / `sfp-plus1` on
   a smaller instance — `--check` passes but the real run fails. Match the port
   list to the VM's NIC count, or give the VM enough NICs via `chr-test-vm.sh`.
+- **The trunk between two physical devices.** `routeros_switch` on a single CHR
+  instance exercises the VLAN-table syntax and idempotence, but not the RB5009 ↔
+  CRS310 trunk itself or how the hardware switch chip tags frames — those only
+  show up on real hardware.
 
 CHR verifies role logic, idempotence, the API connection, and firewall / DHCP
 behaviour. It is not a performance test bed, and "it passed on CHR" is not
@@ -75,3 +79,30 @@ console — before the first `site.yml` run:
 Pinning the API service to the control node's address and disabling the
 built-in `admin` account are deferred steps owned by the `routeros_common`
 role — see `roles/routeros_common/README.md`.
+
+## One-time CRS310 bootstrap (cable it straight to a laptop)
+
+The trunk carries VLAN 1 **tagged**, so there is no untagged traffic on the
+trunk cable. A factory switch does not know the tags and is unreachable over the
+trunk. Bootstrap it before it goes into place:
+
+1. Connect a laptop directly to any access port (or reach it with MAC-Winbox).
+2. Do it by hand — Winbox / WebFig only for this step (ADR-0002 still applies):
+
+   ```
+   /user add name=netadmin group=full password=<vault_routeros_api_password>
+   /user ssh-keys import user=netadmin public-key-file=netadmin.pub
+   /interface bridge set bridge vlan-filtering=no
+   /interface vlan add name=vlan20-servers interface=bridge vlan-id=20
+   /ip address add address=<routeros_switch_mgmt_address> interface=vlan20-servers
+   /ip route add dst-address=0.0.0.0/0 gateway=<servers VLAN gateway>
+   /ip dhcp-client remove [find interface=bridge]
+   /ip service enable api
+   ```
+
+3. Confirm you can log in as `netadmin` over that address.
+4. **Only now** move the switch into place, cable the trunk, and let Ansible
+   (`--limit switches`) take over. `routeros_interfaces` must already be applied
+   on the RB5009 or the switch's management address is not routed yet.
+
+Do not try to bootstrap the switch over the trunk.

@@ -1,10 +1,10 @@
 ---
 # ==============================================================================
 # ROLE: routeros_common (roles/routeros_common/tasks/main.yml)
-# Baseline for the RouterOS edge router: identity, time, the admin/Ansible
-# account and management-service hardening.
+# Baseline for every RouterOS device (the edge router and the CRS310): identity,
+# time, the admin/Ansible account and management-service hardening.
 #
-# Three changes that can lock you out of the router are deliberately NOT run from
+# Three changes that can lock you out of the device are deliberately NOT run from
 # here on a normal pass — each behind its own `never` tag and a gating variable:
 #   - tasks/restrict_api_access.yml   (tags: restrict-api, never)
 #         pins the API service to a single source address
