@@ -1,0 +1,160 @@
+---
+# ==============================================================================
+# ROLE: routeros_interfaces (roles/routeros_interfaces/tasks/main.yml)
+# The edge router's data plane: the LAN bridge, the tagged-VLAN PPPoE uplink,
+# the WireGuard road-warrior server, TCP MSS clamping on both tunnelled links,
+# and the LAN / WAN interface lists the dhcp, dns and firewall roles build on.
+#
+# This is the most lockout-prone role in the repo:
+#   - mechanism A (dead man's switch) is pulled in first, below;
+#   - on hardware, keep a Safe Mode session open alongside the run (mechanism B);
+#   - keep the port you are physically connected through OUT of
+#     routeros_lan_bridge_ports until connectivity via the bridge address is
+#     confirmed, then add it in a separate run (mechanism C).
+# See CLAUDE.md and roles/routeros_interfaces/README.md.
+#
+# Scope note: this role currently brings up a plain untagged LAN bridge. VLAN
+# filtering, the bridge VLAN table and the RB5009 -> CRS310 trunk port are added
+# in a follow-up commit.
+# ==============================================================================
+
+- name: Uzbrój dead man's switch przed zmianą warstwy 2/3 (mechanizm A)
+  ansible.builtin.include_role:
+    name: routeros_common
+    tasks_from: safety_snapshot.yml
+  when: routeros_enable_dead_mans_switch | bool
+
+# --- LAN bridge ---------------------------------------------------------------
+
+- name: Utwórz mostek LAN
+  community.routeros.api_modify:
+    path: interface bridge
+    data:
+      - name: "{{ routeros_lan_bridge }}"
+        # Stays off here. A follow-up commit turns it on together with the
+        # bridge VLAN table and the trunk port.
+        vlan-filtering: false
+        comment: "Managed by Ansible (routeros_interfaces)"
+
+- name: Podłącz porty dostępowe (untagged) do mostka LAN
+  # One entry per call: handle_absent_entries defaults to ignore, so a port
+  # dropped from routeros_lan_bridge_ports is NOT detached automatically —
+  # remove it by hand. ether1 (WAN) and the trunk port are intentionally absent.
+  community.routeros.api_modify:
+    path: interface bridge port
+    data:
+      - bridge: "{{ routeros_lan_bridge }}"
+        interface: "{{ item }}"
+  loop: "{{ routeros_lan_bridge_ports }}"
+
+- name: Nadaj mostkowi LAN adres bramy
+  community.routeros.api_modify:
+    path: ip address
+    data:
+      - address: "{{ routeros_lan_address }}"
+        interface: "{{ routeros_lan_bridge }}"
+        comment: "Managed by Ansible (routeros_interfaces)"
+
+# --- WAN: tagged VLAN + PPPoE ------------------------------------------------
+
+- name: Utwórz interfejs VLAN dla łącza WAN
+  community.routeros.api_modify:
+    path: interface vlan
+    data:
+      - name: "{{ routeros_wan_vlan_interface }}"
+        interface: "{{ routeros_wan_interface }}"
+        vlan-id: "{{ routeros_wan_vlan_id }}"
+        comment: "Managed by Ansible (routeros_interfaces)"
+
+- name: Skonfiguruj klienta PPPoE na tagowanym VLAN-ie WAN
+  community.routeros.api_modify:
+    path: interface pppoe-client
+    data:
+      - name: "{{ routeros_pppoe_interface }}"
+        interface: "{{ routeros_wan_vlan_interface }}"
+        user: "{{ vault_routeros_pppoe_user }}"
+        password: "{{ vault_routeros_pppoe_password }}"
+        add-default-route: true
+        use-peer-dns: false
+        max-mtu: "{{ routeros_pppoe_mtu }}"
+        max-mru: "{{ routeros_pppoe_mtu }}"
+        disabled: false
+        comment: "Managed by Ansible (routeros_interfaces)"
+
+# --- WireGuard road-warrior server ------------------------------------------
+
+- name: Skonfiguruj interfejs serwera WireGuard
+  community.routeros.api_modify:
+    path: interface wireguard
+    data:
+      - name: "{{ routeros_wg_interface }}"
+        listen-port: "{{ routeros_wg_listen_port }}"
+        mtu: "{{ routeros_wg_mtu }}"
+        private-key: "{{ vault_routeros_wg_private_key }}"
+        comment: "Managed by Ansible (routeros_interfaces)"
+
+- name: Nadaj interfejsowi WireGuard adres z sieci nakładkowej
+  community.routeros.api_modify:
+    path: ip address
+    data:
+      - address: "{{ routeros_wg_address }}"
+        interface: "{{ routeros_wg_interface }}"
+        comment: "Managed by Ansible (routeros_interfaces)"
+
+- name: Skonfiguruj peerów WireGuard
+  # Public/preshared keys come from the Vault, keyed by the peer 'name'.
+  # handle_absent_entries defaults to ignore: a peer removed from
+  # routeros_wg_peers is not deleted here — remove it by hand.
+  community.routeros.api_modify:
+    path: interface wireguard peers
+    data:
+      - interface: "{{ routeros_wg_interface }}"
+        public-key: "{{ vault_routeros_wg_peers[item.name].public_key }}"
+        preshared-key: "{{ vault_routeros_wg_peers[item.name].preshared_key }}"
+        allowed-address: "{{ item.allowed_address }}"
+        comment: "{{ item.name }}"
+  loop: "{{ routeros_wg_peers }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+# --- MSS clamping -----------------------------------------------------------
+
+- name: Wymuś MSS clamping (clamp-to-pmtu) na łączach tunelowanych
+  # Mandatory on BOTH the PPPoE uplink (MTU 1492) and WireGuard (MTU 1412):
+  # without it, TCP sessions to hosts that block ICMP "fragmentation needed"
+  # silently black-hole. Matched by comment on re-runs (this path has no PK).
+  community.routeros.api_modify:
+    path: ip firewall mangle
+    data:
+      - chain: forward
+        action: change-mss
+        new-mss: clamp-to-pmtu
+        protocol: tcp
+        tcp-flags: syn
+        out-interface: "{{ routeros_pppoe_interface }}"
+        comment: "ansible:mss-clamp:pppoe"
+      - chain: forward
+        action: change-mss
+        new-mss: clamp-to-pmtu
+        protocol: tcp
+        tcp-flags: syn
+        out-interface: "{{ routeros_wg_interface }}"
+        comment: "ansible:mss-clamp:wireguard"
+
+# --- interface lists -------------------------------------------------------
+
+- name: Utwórz listy interfejsów LAN i WAN
+  community.routeros.api_modify:
+    path: interface list
+    data:
+      - name: LAN
+      - name: WAN
+
+- name: Przypisz interfejsy do list LAN i WAN
+  # The server VLAN joins LAN (and SERVERS) in a follow-up commit.
+  community.routeros.api_modify:
+    path: interface list member
+    data:
+      - {list: LAN, interface: "{{ routeros_lan_bridge }}"}
+      - {list: LAN, interface: "{{ routeros_wg_interface }}"}
+      - {list: WAN, interface: "{{ routeros_pppoe_interface }}"}

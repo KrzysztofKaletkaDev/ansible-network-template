@@ -32,3 +32,5 @@
   #                   -> routeros_dns -> routeros_firewall
   roles:
     - routeros_common
+    - role: routeros_interfaces
+      when: routeros_device_class == 'edge'

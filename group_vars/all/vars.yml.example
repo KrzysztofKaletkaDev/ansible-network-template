@@ -56,3 +56,45 @@ routeros_common_disable_admin: false
 # This is the last way onto the router without a working IP and the box has no
 # serial console — only set true with or after disable-admin, never before.
 routeros_common_disable_mac_recovery: false
+
+
+# --- routeros_interfaces (edge only) -----------------------------------------
+
+# LAN bridge: its name, the gateway address the router holds on it, and the
+# untagged access ports that join it. ether1 is the WAN uplink and stays out of
+# the bridge; the RB5009 -> CRS310 trunk port is added by a later commit, not here.
+routeros_lan_bridge: "bridge-lan"
+routeros_lan_address: "10.0.0.1/24"
+routeros_lan_bridge_ports:
+  - ether3
+  - ether4
+  - ether5
+  - ether6
+  - ether7
+  - ether8
+  - sfp-plus1
+
+# WAN: the physical port to the ONT, the service-delimiting VLAN tag the ISP
+# carries PPPoE over, and the derived name of the VLAN sub-interface.
+routeros_wan_interface: "ether1"
+routeros_wan_vlan_id: 35
+routeros_wan_vlan_interface: "vlan{{ routeros_wan_vlan_id }}-wan"
+
+# PPPoE client. Credentials live in the Vault (vault_routeros_pppoe_*).
+# 1492 = 1500 - 8 (PPPoE header); MSS is additionally clamped to PMTU.
+routeros_pppoe_interface: "pppoe-out1"
+routeros_pppoe_mtu: 1492
+
+# WireGuard road-warrior server. 443/udp to get through captive / restrictive
+# networks; MTU 1412 leaves headroom under the PPPoE path MTU for the WireGuard
+# overhead. Peer public keys and preshared keys live in the Vault
+# (vault_routeros_wg_peers), keyed by the peer 'name' below.
+routeros_wg_interface: "wg0"
+routeros_wg_listen_port: 443
+routeros_wg_mtu: 1412
+routeros_wg_address: "10.100.0.1/24"
+routeros_wg_peers:
+  - {name: phone, allowed_address: "10.100.0.2/32"}
+  - {name: tablet, allowed_address: "10.100.0.3/32"}
+  - {name: laptop, allowed_address: "10.100.0.4/32"}
+  - {name: phone-spare, allowed_address: "10.100.0.5/32"}

@@ -77,7 +77,12 @@ virt-install \
   --disk "path=${LIBVIRT_IMAGES}/${VM_NAME}.qcow2,bus=virtio,format=qcow2" \
   --network "network=${MGMT_NET},model=virtio" \
   --network "network=${WAN_NET},model=virtio" \
+  --network "network=${MGMT_NET},model=virtio" \
+  --network "network=${MGMT_NET},model=virtio" \
   --import --os-variant generic --graphics none --noautoconsole
+# ether3 / ether4 are extra NICs on MGMT_NET, LAN stand-ins so the
+# `interface bridge port` loop and the CN2b bridge VLAN table can be rehearsed
+# without overriding routeros_lan_bridge_ports in group_vars/test.
 
 # --- report the management lease ------------------------------------------
 mgmt_mac="$(virsh domiflist "$VM_NAME" | awk -v n="$MGMT_NET" '$3 == n {print $5}')"
@@ -92,8 +97,9 @@ done
 echo
 echo "CHR '${VM_NAME}' is up (RouterOS ${ROS_VERSION})."
 echo "  management address : ${mgmt_ip:-<not leased yet — virsh net-dhcp-leases ${MGMT_NET}>}"
-echo "  ether1 -> ${MGMT_NET}  (API / management)"
-echo "  ether2 -> ${WAN_NET}   (stand-in WAN)"
+echo "  ether1        -> ${MGMT_NET}  (API / management)"
+echo "  ether2        -> ${WAN_NET}   (stand-in WAN)"
+echo "  ether3/ether4 -> ${MGMT_NET}  (LAN stand-ins for bridge / VLAN tests)"
 echo
 echo "Next: run the one-time RouterOS bootstrap (see README.md) — create the"
 echo "netadmin account, enable /ip service api — then point the [test] group in"

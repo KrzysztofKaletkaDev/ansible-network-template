@@ -10,9 +10,11 @@ host to rehearse role changes before they touch real hardware.
 ```
 
 It downloads the CHR image, converts it to qcow2, defines an isolated
-`chr-wan` network, and starts a `chr-test` domain with two NICs — `ether1` on
-the libvirt `default` NAT network (API / management) and `ether2` on `chr-wan`
-(a stand-in WAN). The management address is printed at the end.
+`chr-wan` network, and starts a `chr-test` domain with four NICs — `ether1` on
+the libvirt `default` NAT network (API / management), `ether2` on `chr-wan`
+(a stand-in WAN), and `ether3` / `ether4` back on `default` as LAN stand-ins so
+the bridge-port loop and the bridge VLAN table can be rehearsed. The management
+address is printed at the end.
 
 Tear down with:
 
@@ -30,6 +32,12 @@ are git-ignored.
 - **PoE** — the RB5009's powered ports have no CHR equivalent.
 - **The hardware switch chip and fasttrack** — CHR forwards purely in software.
 - **Real throughput** — the CHR Free licence caps every interface at 1 Mbit/s.
+- **`--check` does not validate interface existence.** The `invalid value for
+  argument interface` error only surfaces during an actual API call, not in
+  check mode. If `routeros_lan_bridge_ports` (or the CN2b VLAN table) lists
+  interfaces the CHR VM does not have — e.g. `ether3`–`ether8` / `sfp-plus1` on
+  a smaller instance — `--check` passes but the real run fails. Match the port
+  list to the VM's NIC count, or give the VM enough NICs via `chr-test-vm.sh`.
 
 CHR verifies role logic, idempotence, the API connection, and firewall / DHCP
 behaviour. It is not a performance test bed, and "it passed on CHR" is not
