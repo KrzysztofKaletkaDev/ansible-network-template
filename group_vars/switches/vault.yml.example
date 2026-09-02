@@ -1,0 +1,15 @@
+---
+# ==============================================================================
+# ENCRYPTED SECRETS TEMPLATE — 'switches' group (group_vars/switches/vault.yml.example)
+# Copy to group_vars/switches/vault.yml, set a real value, then:
+#   ansible-vault encrypt group_vars/switches/vault.yml
+#
+# 'switches' is a child of 'routers', so it inherits group_vars/routers/vault.yml.
+# This file overrides only what must differ for the switch — its API password,
+# which is deliberately NOT the edge router's (so compromising one device does
+# not hand over the other).
+# ==============================================================================
+
+# Password for the switch's 'netadmin' account. Keep it different from the
+# edge router's vault_routeros_api_password in group_vars/routers/vault.yml.
+vault_routeros_api_password: "SWITCH_PASSWORD_CHANGE_ME"

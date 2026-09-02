@@ -1,19 +1,19 @@
 ---
-- name: Konfiguracja routera brzegowego MikroTik RouterOS
+- name: "Konfiguracja sieci LAN (RouterOS: RB5009 + CRS310)"
   hosts: routers
   connection: local
   gather_facts: false
 
-  # pre_tasks (not tasks) so this runs before any role touches the router.
+  # pre_tasks (not tasks) so this runs before any role touches a device.
   pre_tasks:
-    - name: Wymagaj jawnego --limit — 'routers' obejmuje teraz i produkcję, i CHR
+    - name: Wymagaj jawnego --limit — 'routers' obejmuje edge-router, crs310 i chr-test
       ansible.builtin.assert:
         that:
           - ansible_limit is defined
         fail_msg: >-
-          Odkąd 'test' jest zagnieżdżone pod 'routers', bare site.yml trafia
-          jednocześnie w edge-router i chr-test. Uruchom z jawnym
-          --limit edge-router albo --limit test.
+          Wszystkie hosty są zagnieżdżone pod 'routers', więc bare site.yml
+          trafia naraz w edge-router, crs310 i chr-test. Uruchom z jawnym
+          --limit: edge / switches / test (albo --limit routers świadomie).
 
   # Every community.routeros.api* module opens its own API connection to the
   # router (there is no connection plugin — see docs/adr/0002-*). The shared

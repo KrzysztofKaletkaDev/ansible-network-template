@@ -10,3 +10,10 @@
 # the way here: safety_snapshot.yml marks its backup task changed every run, so a
 # third pass could never report changed=0.
 routeros_enable_dead_mans_switch: false
+
+# Set this to the class of the role you are currently rehearsing on the CHR VM,
+# so site.yml's `when: routeros_device_class == ...` guards let it run:
+#   "edge"   -> routeros_interfaces / routeros_dhcp / routeros_dns / routeros_firewall
+#   "switch" -> routeros_switch
+# Leave it out (inherits "" from group_vars/all) to run only routeros_common.
+# routeros_device_class: "edge"

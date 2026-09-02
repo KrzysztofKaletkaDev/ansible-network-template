@@ -1,0 +1,10 @@
+---
+# ==============================================================================
+# EDGE-ROUTER GROUP VARS (group_vars/edge/vars.yml.example)
+# Copy to group_vars/edge/vars.yml. Non-secret; kept out of git so a local copy
+# can hold the real values. Secrets go in group_vars/routers/vault.yml.
+# ==============================================================================
+
+# Runs the edge-router roles: routeros_interfaces / routeros_dhcp / routeros_dns
+# / routeros_firewall (site.yml guards each with routeros_device_class == 'edge').
+routeros_device_class: "edge"

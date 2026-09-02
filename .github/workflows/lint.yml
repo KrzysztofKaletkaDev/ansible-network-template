@@ -58,6 +58,9 @@ jobs:
           cp inventory/hosts.yml.example inventory/hosts.yml
           cp group_vars/all/vars.yml.example group_vars/all/vars.yml
           cp group_vars/routers/vault.yml.example group_vars/routers/vault.yml
+          cp group_vars/edge/vars.yml.example group_vars/edge/vars.yml
+          cp group_vars/switches/vars.yml.example group_vars/switches/vars.yml
+          cp group_vars/switches/vault.yml.example group_vars/switches/vault.yml
           cp group_vars/test/vars.yml.example group_vars/test/vars.yml
           cp group_vars/test/vault.yml.example group_vars/test/vault.yml
 

@@ -1,0 +1,32 @@
+---
+# ==============================================================================
+# SWITCH GROUP VARS (group_vars/switches/vars.yml.example)
+# Copy to group_vars/switches/vars.yml. Non-secret; kept out of git so a local
+# copy can hold the real port assignments. Secrets go in
+# group_vars/switches/vault.yml (its own password — see the .example there).
+# ==============================================================================
+
+# Runs the routeros_switch role (site.yml guards it with
+# routeros_device_class == 'switch'). routeros_common runs on every RouterOS
+# device regardless.
+routeros_device_class: "switch"
+
+# --- CRS310 port layout (used by routeros_switch, added in a later commit) -----
+routeros_switch_identity: "crs310"
+
+# Trunk port to the edge router (tagged: VLAN main + VLAN servers). Not an
+# access port — added on its own, never via the *_vlan_ports loops.
+routeros_switch_trunk_port: "ether1"
+
+# Access ports, untagged VLAN main (Deco + spare)
+routeros_switch_main_vlan_ports:
+  - ether2
+  - ether3
+
+# Access ports, untagged VLAN servers (QNAP + alma, mini-PC, iMac, spares)
+routeros_switch_servers_vlan_ports:
+  - ether4
+  - ether5
+  - ether6
+  - ether7
+  - ether8

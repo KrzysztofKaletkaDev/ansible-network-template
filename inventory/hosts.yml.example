@@ -7,33 +7,45 @@
 #   routers            - EVERY RouterOS device this repo manages, production and
 #                        test alike (not "production only"). site.yml targets
 #                        this group, so group_vars/routers/ — including the
-#                        Vault — applies to both.
-#     edge-router      - the real edge router
-#     test / chr-test  - a RouterOS CHR VM for rehearsing changes; inherits
-#                        group_vars/routers/ and overrides only what differs
-#                        in group_vars/test/ (its own Vault password, no dead
-#                        man's switch)
+#                        Vault — applies to all of them.
+#     edge / edge-router   - the real edge router (RB5009)
+#     switches / crs310    - the RouterOS switch (CRS310); its management IP is
+#                            in the server VLAN, its Vault password is its own
+#     test / chr-test      - a RouterOS CHR VM for rehearsing changes
 #
-# Because 'test' is nested under 'routers', a bare `ansible-playbook site.yml`
-# (and `--limit routers`) hits BOTH edge-router and chr-test. site.yml refuses
-# to run without an explicit --limit for that reason; `--limit routers` is still
-# allowed as a deliberate choice. Scope every run:
-#   --limit edge-router     production only
-#   --limit test            the CHR VM only
-#   --limit routers         both, on purpose
+# Device class drives which roles run (site.yml): group_vars/edge/ sets
+# routeros_device_class=edge, group_vars/switches/ sets it to switch. For the CHR
+# VM, set it locally in group_vars/test/vars.yml to whichever you are rehearsing.
+#
+# Because every host is nested under 'routers', a bare `ansible-playbook site.yml`
+# (and `--limit routers`) hits ALL of them. site.yml refuses to run without an
+# explicit --limit for that reason. Scope every run:
+#   --limit edge-router   /  --limit edge        production only
+#   --limit crs310        /  --limit switches    the switch only
+#   --limit chr-test      /  --limit test        the CHR VM only
+#   --limit routers                              everything, on purpose
 # ==============================================================================
 
 all:
   children:
     routers:
-      hosts:
-        edge-router:
-          # Management address of the router (RouterOS API endpoint)
-          ansible_host: 10.0.0.1
-
       children:
+
+        edge:
+          hosts:
+            edge-router:
+              # Management address of the edge router (RouterOS API endpoint)
+              ansible_host: 10.0.0.1
+
+        switches:
+          hosts:
+            crs310:
+              # Management address of the switch — in the server VLAN
+              ansible_host: 10.0.20.2
+
         test:
           hosts:
             chr-test:
-              # Address of the CHR VM on the libvirt network (libvirt default range)
-              ansible_host: 192.168.122.50
+              # The CHR VM's address on your libvirt/KVM network
+              # (192.0.2.0/24 is a placeholder — use the real leased address)
+              ansible_host: 192.0.2.50

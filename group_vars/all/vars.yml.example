@@ -17,6 +17,12 @@ routeros_identity: "edge-router"
 # Its password lives in group_vars/routers/vault.yml as vault_routeros_api_password.
 routeros_api_user: "netadmin"
 
+# Which device this host is, so site.yml can pick the right roles. Overridden
+# per group: group_vars/edge/ -> "edge", group_vars/switches/ -> "switch".
+# Left empty here so a host with no group override (e.g. the CHR VM before you
+# set it in group_vars/test/vars.yml) gets only the shared routeros_common role.
+routeros_device_class: ""
+
 
 # --- routeros_common ----------------------------------------------------------
 
