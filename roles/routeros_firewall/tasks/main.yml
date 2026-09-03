@@ -102,8 +102,11 @@
          dst-port: "{{ routeros_wg_listen_port }}", comment: "ansible: in WireGuard"}
       - {chain: input, action: drop, in-interface-list: WAN, comment: "ansible: in drop WAN"}
       # ----- chain forward -----
+      # hw-offload declared explicitly: fasttrack-connection enforces it as true
+      # regardless, and handle_entries_content would otherwise try to unset it
+      # every run and count the acknowledged (no-op) command as a change.
       - {chain: forward, action: fasttrack-connection, connection-state: "established,related",
-         comment: "ansible: fwd fasttrack"}
+         hw-offload: true, comment: "ansible: fwd fasttrack"}
       - {chain: forward, action: accept, connection-state: "established,related", comment: "ansible: fwd est/rel"}
       - {chain: forward, action: drop, connection-state: invalid, comment: "ansible: fwd invalid"}
       # anti-DoH: block :443 to known DoH resolvers from the LAN (the ad-blocker
