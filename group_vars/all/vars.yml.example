@@ -190,7 +190,10 @@ routeros_dns_fallback_upstream:
   - "1.1.1.1"
   - "9.9.9.9"
 
-routeros_dns_cache_size: "4096KiB"
+# Bare integer, no "KiB" suffix: the RouterOS API returns cache-size as a plain
+# number (the CLI display adds KiB, the API value does not). A suffixed string
+# makes api_modify see a mismatch every run.
+routeros_dns_cache_size: 4096
 routeros_dns_netwatch_interval: "30s"
 
 # Static A records the router answers directly. name -> address.
