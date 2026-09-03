@@ -1,0 +1,108 @@
+---
+# ==============================================================================
+# ROLE: routeros_dhcp (roles/routeros_dhcp/tasks/main.yml)
+# DHCP for both VLANs (main + servers): a pool, a server and a network per VLAN,
+# plus static reservations. The router advertises itself as the only DNS
+# resolver (ADR-0004, lands with routeros_dns).
+#
+# Runs where routeros_device_class == 'edge'. Depends on routeros_interfaces
+# having created bridge-lan and the vlan-servers sub-interface.
+# ==============================================================================
+
+- name: Zweryfikuj spójność routeros_servers_vlan_hosts
+  # routeros_qnap_native_ip / routeros_alma_ip (used by routeros_firewall)
+  # resolve 'qnap-native' / 'alma' with selectattr|first and crash on an empty
+  # match. Catch a drifted local group_vars here, not deep inside CN6.
+  ansible.builtin.assert:
+    that:
+      - routeros_servers_vlan_hosts | length > 0
+      - routeros_servers_vlan_hosts | map(attribute='name') | list | length
+        == routeros_servers_vlan_hosts | length
+      - "'qnap-native' in _routeros_dhcp_host_names"
+      - "'alma' in _routeros_dhcp_host_names"
+    fail_msg: >-
+      routeros_servers_vlan_hosts must be a non-empty list whose entries each
+      carry a 'name', and it must include 'qnap-native' and 'alma'. Your local
+      group_vars/all/vars.yml has drifted from the .example naming.
+    quiet: true
+  vars:
+    _routeros_dhcp_host_names: "{{ routeros_servers_vlan_hosts | map(attribute='name') | list }}"
+
+# --- pool / server / network, per VLAN ------------------------------------
+
+- name: Utwórz pule adresowe DHCP (per VLAN)
+  community.routeros.api_modify:
+    path: ip pool
+    data:
+      - name: "dhcp-{{ item.vlan }}"
+        ranges: "{{ routeros_dhcp_pool_ranges[item.vlan] }}"
+        comment: "Managed by Ansible (routeros_dhcp)"
+  loop: "{{ routeros_dhcp_networks }}"
+  loop_control:
+    label: "dhcp-{{ item.vlan }}"
+
+- name: Utwórz serwery DHCP (per VLAN)
+  community.routeros.api_modify:
+    path: ip dhcp-server
+    data:
+      - name: "dhcp-{{ item.vlan }}"
+        interface: "{{ item.interface }}"
+        address-pool: "dhcp-{{ item.vlan }}"
+        lease-time: "{{ routeros_dhcp_lease_time }}"
+        authoritative: true
+        disabled: false
+        comment: "Managed by Ansible (routeros_dhcp)"
+  loop: "{{ routeros_dhcp_networks }}"
+  loop_control:
+    label: "dhcp-{{ item.vlan }}"
+
+- name: Skonfiguruj sieci DHCP (brama + DNS = router)
+  # dns-server points at the VLAN gateway: the router is the sole advertised
+  # resolver (ADR-0004). Until routeros_dns runs, /ip dns does not answer yet.
+  community.routeros.api_modify:
+    path: ip dhcp-server network
+    data:
+      - address: "{{ routeros_vlans[item.vlan].subnet }}"
+        gateway: "{{ routeros_vlans[item.vlan].gateway }}"
+        dns-server: "{{ routeros_vlans[item.vlan].gateway }}"
+        comment: "Managed by Ansible (routeros_dhcp)"
+  loop: "{{ routeros_dhcp_networks }}"
+  loop_control:
+    label: "{{ routeros_vlans[item.vlan].subnet }}"
+
+# --- static reservations (one declarative table across both servers) -----
+
+- name: Zbuduj rezerwacje — VLAN main
+  ansible.builtin.set_fact:
+    routeros_dhcp_lease_data: >-
+      {{ routeros_dhcp_lease_data | default([]) + [{
+           'server': 'dhcp-main',
+           'address': item.ip,
+           'mac-address': item.mac,
+           'comment': item.name,
+         }] }}
+  loop: "{{ routeros_dhcp_leases }}"
+  loop_control:
+    label: "{{ item.name }} ({{ item.ip }})"
+
+- name: Zbuduj rezerwacje — VLAN servers
+  ansible.builtin.set_fact:
+    routeros_dhcp_lease_data: >-
+      {{ routeros_dhcp_lease_data | default([]) + [{
+           'server': 'dhcp-servers',
+           'address': routeros_servers_vlan_prefix ~ '.' ~ item.host_octet,
+           'mac-address': item.mac,
+           'comment': item.name,
+         }] }}
+  loop: "{{ routeros_servers_vlan_hosts }}"
+  loop_control:
+    label: "{{ item.name }} ({{ routeros_servers_vlan_prefix }}.{{ item.host_octet }})"
+
+- name: Zastosuj rezerwacje DHCP (deklaratywnie)
+  # handle_absent_entries=remove: a STATIC lease not in the tables above is
+  # dropped. Dynamic leases (live clients) are skipped by the module, so this
+  # never disturbs a running network.
+  community.routeros.api_modify:
+    path: ip dhcp-server lease
+    handle_absent_entries: remove
+    data: "{{ routeros_dhcp_lease_data }}"

@@ -134,17 +134,44 @@ routeros_servers_vlan_interface: "vlan{{ routeros_vlans.servers.id }}-servers"
 routeros_servers_vlan_prefix: >-
   {{ routeros_vlans.servers.subnet.split('/')[0].split('.')[0:3] | join('.') }}
 
-# Server-VLAN hosts — one list, later feeding both DHCP reservations and
-# firewall rules. Real MACs live in the local group_vars/all/vars.yml; these
-# are fake.
+# Server-VLAN hosts — one list feeding both DHCP reservations (routeros_dhcp) and
+# firewall rules (routeros_firewall). MUST contain 'qnap-native' and 'alma' —
+# the reference vars below resolve those names. Real MACs live in the local
+# group_vars/all/vars.yml; these are fake.
 routeros_servers_vlan_hosts:
-  - {name: server-a, mac: "AA:BB:CC:DD:EE:01", host_octet: 10}
-  - {name: server-b, mac: "AA:BB:CC:DD:EE:02", host_octet: 11}
+  - {name: qnap-native, mac: "AA:BB:CC:DD:EE:10", host_octet: 10}
+  - {name: alma, mac: "AA:BB:CC:DD:EE:11", host_octet: 11}
+  - {name: nucbox, mac: "AA:BB:CC:DD:EE:36", host_octet: 136}
+  - {name: imac, mac: "AA:BB:CC:DD:EE:C0", host_octet: 192}
 
 # Named address references for readable firewall rules (used by routeros_firewall).
+# routeros_dhcp asserts that 'qnap-native' / 'alma' exist so these never resolve
+# `first` on an empty match.
 routeros_qnap_native_ip: >-
   {{ routeros_servers_vlan_prefix }}.{{ routeros_servers_vlan_hosts
-     | selectattr('name', 'equalto', 'server-a') | map(attribute='host_octet') | first }}
+     | selectattr('name', 'equalto', 'qnap-native') | map(attribute='host_octet') | first }}
 routeros_alma_ip: >-
   {{ routeros_servers_vlan_prefix }}.{{ routeros_servers_vlan_hosts
-     | selectattr('name', 'equalto', 'server-b') | map(attribute='host_octet') | first }}
+     | selectattr('name', 'equalto', 'alma') | map(attribute='host_octet') | first }}
+
+
+# --- routeros_dhcp (edge only) --------------------------------------------------
+
+# Which bridge interface serves DHCP for each VLAN key in routeros_vlans.
+routeros_dhcp_networks:
+  - {vlan: main, interface: "{{ routeros_lan_bridge }}"}
+  - {vlan: servers, interface: "{{ routeros_servers_vlan_interface }}"}
+
+# Dynamic pool range per VLAN — must sit outside the static-reservation band.
+routeros_dhcp_pool_ranges:
+  main: "10.0.0.50-10.0.0.240"
+  servers: "10.0.20.50-10.0.20.240"
+
+routeros_dhcp_lease_time: "1d"
+
+# Static reservations on VLAN main. The real table (~14 entries) lives in the
+# local group_vars/all/vars.yml; these are placeholders. Server-VLAN
+# reservations are derived from routeros_servers_vlan_hosts, not listed here.
+routeros_dhcp_leases:
+  - {name: example-nas, mac: "AA:BB:CC:DD:EE:20", ip: "10.0.0.20"}
+  - {name: example-printer, mac: "AA:BB:CC:DD:EE:21", ip: "10.0.0.21"}
