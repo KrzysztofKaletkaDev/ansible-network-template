@@ -38,3 +38,5 @@
       when: routeros_device_class == 'switch'
     - role: routeros_dhcp
       when: routeros_device_class == 'edge'
+    - role: routeros_dns
+      when: routeros_device_class == 'edge'

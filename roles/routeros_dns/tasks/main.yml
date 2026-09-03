@@ -1,0 +1,115 @@
+---
+# ==============================================================================
+# ROLE: routeros_dns (roles/routeros_dns/tasks/main.yml)
+# The router's /ip dns is the only advertised resolver (ADR-0004). It forwards
+# to the ad-blocking resolver on the server VLAN; a Netwatch entry swings the
+# upstream to public resolvers if that host goes down — the LAN keeps working,
+# without ad-blocking, until it recovers.
+#
+# Runs where routeros_device_class == 'edge'.
+#
+# ip dns static and tool netwatch have no primary key in api_modify (ADR-0009):
+# each managed entry is comment-tagged and a cleanup task removes stale ones.
+# ==============================================================================
+
+- name: Skonfiguruj forwarder DNS routera
+  # /ip dns is single-value — api_modify updates in place, no duplication risk.
+  community.routeros.api_modify:
+    path: ip dns
+    data:
+      - servers: "{{ routeros_dns_primary_upstream }}"
+        allow-remote-requests: true
+        cache-size: "{{ routeros_dns_cache_size }}"
+
+# --- Netwatch fallback ---------------------------------------------------
+
+- name: Utwórz skrypty przełączające upstream DNS
+  # Named scripts keep the Netwatch down-/up-script fields stable strings, so
+  # only 'source' ever changes and system script (PK name) updates cleanly.
+  community.routeros.api_modify:
+    path: system script
+    data:
+      - name: ansible-dns-fallback-down
+        source: "/ip dns set servers={{ routeros_dns_fallback_upstream | join(',') }}"
+        policy: "read,write,test"
+        comment: "Managed by Ansible (routeros_dns)"
+      - name: ansible-dns-fallback-up
+        source: "/ip dns set servers={{ routeros_dns_primary_upstream }}"
+        policy: "read,write,test"
+        comment: "Managed by Ansible (routeros_dns)"
+
+- name: Skonfiguruj Netwatch na resolver podstawowy
+  community.routeros.api_modify:
+    path: tool netwatch
+    data:
+      - name: ansible-dns-primary
+        host: "{{ routeros_dns_primary_upstream }}"
+        type: simple
+        interval: "{{ routeros_dns_netwatch_interval }}"
+        down-script: "/system script run ansible-dns-fallback-down"
+        up-script: "/system script run ansible-dns-fallback-up"
+        disabled: false
+        comment: "ansible:dns-netwatch"
+
+- name: Pobierz wpisy Netwatch oznaczone przez Ansible
+  community.routeros.api:
+    path: tool netwatch
+    query: ".id name host comment"
+  register: routeros_dns_netwatch_current
+  changed_when: false
+
+- name: Usuń nieaktualne wpisy Netwatch oznaczone przez Ansible
+  # Keyed on host — the field that changes when the resolver is renumbered.
+  community.routeros.api:
+    path: tool netwatch
+    remove: "{{ item['.id'] }}"
+  loop: >-
+    {{ routeros_dns_netwatch_current.msg
+       | default([])
+       | selectattr('comment', 'defined')
+       | selectattr('comment', 'equalto', 'ansible:dns-netwatch')
+       | rejectattr('host', 'equalto', routeros_dns_primary_upstream)
+       | list }}
+  loop_control:
+    label: "{{ item.name }} ({{ item.host }})"
+
+# --- static A records --------------------------------------------------
+
+- name: Zbuduj deklaratywną listę rekordów statycznych DNS
+  ansible.builtin.set_fact:
+    routeros_dns_static_data: >-
+      {{ routeros_dns_static_data | default([]) + [{
+           'name': item.name,
+           'address': item.address,
+           'comment': 'ansible:dns-static',
+         }] }}
+  loop: "{{ routeros_dns_static }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Zastosuj rekordy statyczne DNS
+  community.routeros.api_modify:
+    path: ip dns static
+    data: "{{ routeros_dns_static_data }}"
+  when: routeros_dns_static | length > 0
+
+- name: Pobierz rekordy statyczne DNS oznaczone przez Ansible
+  community.routeros.api:
+    path: ip dns static
+    query: ".id name comment"
+  register: routeros_dns_static_current
+  changed_when: false
+
+- name: Usuń nieaktualne rekordy statyczne DNS oznaczone przez Ansible
+  community.routeros.api:
+    path: ip dns static
+    remove: "{{ item['.id'] }}"
+  loop: >-
+    {{ routeros_dns_static_current.msg
+       | default([])
+       | selectattr('comment', 'defined')
+       | selectattr('comment', 'equalto', 'ansible:dns-static')
+       | rejectattr('name', 'in', routeros_dns_static | map(attribute='name') | list)
+       | list }}
+  loop_control:
+    label: "{{ item.name }}"

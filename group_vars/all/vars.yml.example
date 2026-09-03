@@ -175,3 +175,24 @@ routeros_dhcp_lease_time: "1d"
 routeros_dhcp_leases:
   - {name: example-nas, mac: "AA:BB:CC:DD:EE:20", ip: "10.0.0.20"}
   - {name: example-printer, mac: "AA:BB:CC:DD:EE:21", ip: "10.0.0.21"}
+
+
+# --- routeros_dns (edge only) ------------------------------------------------
+
+# The router's /ip dns forwards here — the ad-blocking resolver on the server
+# VLAN (ADR-0004). Derived from routeros_alma_ip.
+routeros_dns_primary_upstream: "{{ routeros_alma_ip }}"
+
+# Where Netwatch swings the upstream when the primary is unreachable. Public
+# resolvers — there is no second local DNS node, so the LAN loses ad-blocking
+# until the primary recovers (ADR-0004).
+routeros_dns_fallback_upstream:
+  - "1.1.1.1"
+  - "9.9.9.9"
+
+routeros_dns_cache_size: "4096KiB"
+routeros_dns_netwatch_interval: "30s"
+
+# Static A records the router answers directly. name -> address.
+routeros_dns_static:
+  - {name: "router.lan", address: "10.0.0.1"}
