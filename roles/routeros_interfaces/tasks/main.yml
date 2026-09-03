@@ -118,7 +118,10 @@
 - name: Wymuś MSS clamping (clamp-to-pmtu) na łączach tunelowanych
   # Mandatory on BOTH the PPPoE uplink (MTU 1492) and WireGuard (MTU 1412):
   # without it, TCP sessions to hosts that block ICMP "fragmentation needed"
-  # silently black-hole. Matched by comment on re-runs (this path has no PK).
+  # silently black-hole. This path has no primary key, so api_modify matches on
+  # full entry content — changing routeros_pppoe_interface or routeros_wg_interface
+  # would add new rules and leave the old ones behind (see ADR-0009). No cleanup
+  # task here yet; those interface names are stable.
   community.routeros.api_modify:
     path: ip firewall mangle
     data:

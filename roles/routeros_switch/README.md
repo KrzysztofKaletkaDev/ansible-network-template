@@ -13,6 +13,9 @@ this host as well and covers identity, time, the account and service hardening.
   added on its own, never through the access-port loops
 - the switch's management address (`routeros_switch_mgmt_address`) on the
   `servers` VLAN, plus a default route via `routeros_vlans.servers.gateway`
+- exactly one `ansible:default-route`-tagged default route — `ip route` has no
+  primary key, so a changed gateway is added rather than updated; a dedicated
+  cleanup task removes the stale one after the new one is in place (ADR-0009)
 - `vlan-filtering` enabled **after** the table is in place
 
 ## First run: cable straight to a laptop, not the trunk

@@ -18,3 +18,4 @@ commit as the role that implements them; there is no file yet.
 | 0006 | Server VLAN segmentation | Planned (with `routeros_firewall`) |
 | [0007](0007-crs310-switch-in-the-same-repo.md) | The CRS310 switch lives in this repository, not its own | Accepted |
 | 0008 | QNAP as two firewall endpoints | Planned (with `routeros_firewall`) |
+| [0009](0009-comment-anchored-entries-on-pk-less-paths.md) | Comment-anchored entries on PK-less paths | Accepted |

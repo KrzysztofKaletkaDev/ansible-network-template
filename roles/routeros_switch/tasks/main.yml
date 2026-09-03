@@ -101,15 +101,48 @@
         comment: "Managed by Ansible (routeros_switch)"
 
 - name: Ustaw trasę domyślną switcha przez bramę sieci serwerowej
-  # ip route has no primary key in api_modify — matched by comment on re-runs.
-  # The factory DHCP client on the bare bridge must be removed during bootstrap
-  # (it stops working once management moves onto the tagged server VLAN).
+  # This path has no primary key in api_modify, so it matches on full entry
+  # content: changing the gateway ADDS a second 0.0.0.0/0 route instead of
+  # updating this one, and handle_absent_entries defaults to ignore so the old
+  # route survives (verified on CHR — see ADR-0009). The cleanup task below is
+  # what keeps exactly one ansible-managed default route.
+  # (The factory DHCP client on the bare bridge is removed during bootstrap —
+  # it stops working once management moves onto the tagged server VLAN.)
   community.routeros.api_modify:
     path: ip route
     data:
       - dst-address: "0.0.0.0/0"
         gateway: "{{ routeros_vlans.servers.gateway }}"
         comment: "ansible:default-route"
+
+- name: Pobierz trasy statyczne oznaczone przez Ansible
+  community.routeros.api:
+    path: ip route
+    query: ".id dst-address gateway comment"
+  register: routeros_switch_routes
+  changed_when: false
+
+- name: Usuń nieaktualne trasy domyślne oznaczone przez Ansible
+  # Runs AFTER the route above is created, never before: the control node
+  # reaches this switch from another subnet, so the switch needs a default
+  # route for its return traffic. Add-then-remove leaves a brief window with
+  # two equal-cost default routes (degraded but reachable); remove-then-add
+  # leaves a window with none — a dropped session on a box with no serial
+  # console. selectattr('comment','defined') comes first because dynamic
+  # routes (connected, DHCP) carry no comment and must never be matched — the
+  # remove call would fail on a dynamic entry.
+  community.routeros.api:
+    path: ip route
+    remove: "{{ item['.id'] }}"
+  loop: >-
+    {{ routeros_switch_routes.msg
+       | default([])
+       | selectattr('comment', 'defined')
+       | selectattr('comment', 'equalto', 'ansible:default-route')
+       | rejectattr('gateway', 'equalto', routeros_vlans.servers.gateway)
+       | list }}
+  loop_control:
+    label: "{{ item.gateway }}"
 
 # --- enforce the VLAN table -------------------------------------------
 
