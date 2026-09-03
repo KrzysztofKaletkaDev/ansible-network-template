@@ -1,0 +1,146 @@
+---
+# ==============================================================================
+# ROLE: routeros_firewall (roles/routeros_firewall/tasks/main.yml)
+# The LAN firewall: DNS interception, anti-DoH/DoT, and main <-> servers VLAN
+# segmentation (ADR-0006). The QNAP is two endpoints — native QTS and the "alma"
+# VM — each with its own address and rules (ADR-0008).
+#
+# Runs where routeros_device_class == 'edge'. Depends on routeros_interfaces
+# (the LAN / WAN / SERVERS interface lists, pppoe-out1, wg0) and on the address
+# references from group_vars/all (routeros_alma_ip, routeros_qnap_native_ip).
+#
+# THE MOST DANGEROUS ROLE IN THE REPO. It OWNS the entire `ip firewall filter`
+# table (handle_absent_entries=remove + ensure_order): a rule not listed here is
+# deleted, and a wrong interface-list membership is a lockout. On hardware the
+# dead man's switch (mechanism A, pulled in below) AND a live Safe Mode session
+# (mechanism B) are mandatory. Test on CHR first.
+#
+# `ip firewall filter` / `ip firewall nat` have no primary key (ADR-0009); here
+# the role owns the whole path, so handle_absent_entries=remove is the right
+# tool rather than the comment-tag + cleanup pattern.
+# ==============================================================================
+
+- name: Uzbrój dead man's switch przed zmianą firewalla (mechanizm A)
+  ansible.builtin.include_role:
+    name: routeros_common
+    tasks_from: safety_snapshot.yml
+  when: routeros_enable_dead_mans_switch | bool
+
+# --- address lists -------------------------------------------------------
+
+- name: Zbuduj deklaratywną listę wpisów address-list
+  ansible.builtin.set_fact:
+    routeros_firewall_al_data: >-
+      {{ routeros_firewall_al_data | default([])
+         + [{'list': item.0.key, 'address': item.1}] }}
+  loop: "{{ routeros_firewall_address_lists | dict2items | subelements('value') }}"
+  loop_control:
+    label: "{{ item.0.key }} / {{ item.1 }}"
+
+- name: Zastosuj listy adresów firewalla
+  # restrict scopes the remove to our own list names — entries in any other
+  # address list are untouched.
+  community.routeros.api_modify:
+    path: ip firewall address-list
+    handle_absent_entries: remove
+    restrict:
+      - field: list
+        values: "{{ routeros_firewall_address_lists | list }}"
+    data: "{{ routeros_firewall_al_data | default([]) }}"
+
+# --- NAT ---------------------------------------------------------------
+
+- name: Zastosuj reguły NAT (przechwycenie :53 + masquerade)
+  # redirect (not dst-nat to the resolver host): the router answers on /ip dns
+  # and conntrack un-NATs the reply, so a same-subnet client with a hardcoded
+  # external resolver still accepts the answer — no hairpin NAT needed
+  # (ADR-0004 / ADR-0006).
+  community.routeros.api_modify:
+    path: ip firewall nat
+    handle_absent_entries: remove
+    handle_entries_content: remove_as_much_as_possible
+    restrict:
+      - field: chain
+        values: [dstnat, srcnat]
+    data:
+      - chain: dstnat
+        action: redirect
+        protocol: udp
+        dst-port: "53"
+        in-interface-list: LAN
+        src-address-list: "!dns-nat-exempt"
+        to-ports: "53"
+        comment: "ansible: redirect DNS (udp)"
+      - chain: dstnat
+        action: redirect
+        protocol: tcp
+        dst-port: "53"
+        in-interface-list: LAN
+        src-address-list: "!dns-nat-exempt"
+        to-ports: "53"
+        comment: "ansible: redirect DNS (tcp)"
+      - chain: srcnat
+        action: masquerade
+        out-interface: "{{ routeros_pppoe_interface }}"
+        comment: "ansible: masquerade WAN"
+
+# --- filter (complete, ordered — owns the whole table) ---------------
+
+- name: Zastosuj reguły filtrujące (pełna, uporządkowana tabela)
+  community.routeros.api_modify:
+    path: ip firewall filter
+    handle_absent_entries: remove
+    handle_entries_content: remove_as_much_as_possible
+    ensure_order: true
+    data:
+      # ----- chain input -----
+      - {chain: input, action: accept, connection-state: "established,related", comment: "ansible: in est/rel"}
+      - {chain: input, action: drop, connection-state: invalid, comment: "ansible: in invalid"}
+      - {chain: input, action: accept, protocol: icmp, comment: "ansible: in icmp"}
+      - {chain: input, action: accept, in-interface-list: LAN, comment: "ansible: in from LAN"}
+      - {chain: input, action: accept, in-interface-list: WAN, protocol: udp,
+         dst-port: "{{ routeros_wg_listen_port }}", comment: "ansible: in WireGuard"}
+      - {chain: input, action: drop, in-interface-list: WAN, comment: "ansible: in drop WAN"}
+      # ----- chain forward -----
+      - {chain: forward, action: fasttrack-connection, connection-state: "established,related",
+         comment: "ansible: fwd fasttrack"}
+      - {chain: forward, action: accept, connection-state: "established,related", comment: "ansible: fwd est/rel"}
+      - {chain: forward, action: drop, connection-state: invalid, comment: "ansible: fwd invalid"}
+      # anti-DoH: block :443 to known DoH resolvers from the LAN (the ad-blocker
+      # is exempt — it uses DoH upstream). ADR-0004.
+      - {chain: forward, action: drop, in-interface-list: LAN, protocol: tcp, dst-port: "443",
+         dst-address-list: doh-resolvers, src-address-list: "!doh-exempt", comment: "ansible: fwd drop DoH"}
+      # anti-DoT: block :853 to the internet from the LAN.
+      - {chain: forward, action: drop, in-interface-list: LAN, out-interface: "{{ routeros_pppoe_interface }}",
+         protocol: tcp, dst-port: "853", comment: "ansible: fwd drop DoT"}
+      # LAN -> SERVERS: three explicit accepts, then a drop (ADR-0006).
+      - {chain: forward, action: accept, in-interface-list: LAN, out-interface-list: SERVERS,
+         dst-address: "{{ routeros_alma_ip }}", protocol: tcp, dst-port: "80,443",
+         comment: "ansible: fwd accept web to alma"}
+      - {chain: forward, action: accept, in-interface-list: LAN, out-interface-list: SERVERS,
+         src-address-list: qnap-native-access, dst-address: "{{ routeros_qnap_native_ip }}",
+         protocol: tcp, dst-port: "443", comment: "ansible: fwd accept native QTS"}
+      - {chain: forward, action: accept, src-address-list: wg-trusted, out-interface-list: SERVERS,
+         comment: "ansible: fwd accept wg-trusted to SERVERS"}
+      # control node -> switch management (mgmt lives in the server VLAN).
+      - {chain: forward, action: accept, src-address: "{{ routeros_controller_ip }}",
+         dst-address: "{{ routeros_switch_mgmt_ip }}", protocol: tcp, dst-port: "22,8291,8728",
+         comment: "ansible: fwd accept control node to switch"}
+      - {chain: forward, action: drop, in-interface-list: LAN, out-interface-list: SERVERS,
+         comment: "ansible: fwd drop LAN to SERVERS"}
+      # SERVERS -> LAN unrestricted (QVR Pro on the NAS dials out to the cameras
+      # on VLAN main). Deliberate asymmetry — ADR-0006.
+      - {chain: forward, action: accept, in-interface-list: SERVERS, out-interface-list: LAN,
+         comment: "ansible: fwd accept SERVERS to LAN"}
+      - {chain: forward, action: accept, in-interface-list: LAN, out-interface-list: WAN,
+         comment: "ansible: fwd accept LAN to WAN"}
+      - {chain: forward, action: accept, in-interface-list: SERVERS, out-interface-list: WAN,
+         comment: "ansible: fwd accept SERVERS to WAN"}
+      # wg0 <-> the main-VLAN bridge (wg0 is in the LAN list; this is the
+      # main <-> WireGuard path, kept explicit and out of the SERVERS rules).
+      - {chain: forward, action: accept, in-interface: "{{ routeros_wg_interface }}",
+         out-interface: "{{ routeros_lan_bridge }}", comment: "ansible: fwd accept wg0 to bridge"}
+      - {chain: forward, action: accept, in-interface: "{{ routeros_lan_bridge }}",
+         out-interface: "{{ routeros_wg_interface }}", comment: "ansible: fwd accept bridge to wg0"}
+      - {chain: forward, action: drop, in-interface-list: WAN, connection-nat-state: "!dstnat",
+         comment: "ansible: fwd drop WAN to LAN"}

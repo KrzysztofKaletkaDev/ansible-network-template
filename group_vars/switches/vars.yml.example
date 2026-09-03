@@ -22,7 +22,7 @@ routeros_switch_bridge: "bridge"
 # Switch management address, on the server VLAN. The gateway and VLAN id come
 # from routeros_vlans.servers (group_vars/all). Keep this in sync with the
 # crs310 ansible_host in inventory/hosts.yml.
-routeros_switch_mgmt_address: "10.0.20.2/24"
+routeros_switch_mgmt_address: "{{ routeros_switch_mgmt_ip }}/24"  # host part in group_vars/all
 
 # Trunk port to the edge router (tagged: VLAN main + VLAN servers). Not an
 # access port — added on its own, never via the *_vlan_ports loops.

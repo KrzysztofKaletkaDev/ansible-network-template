@@ -40,3 +40,5 @@
       when: routeros_device_class == 'edge'
     - role: routeros_dns
       when: routeros_device_class == 'edge'
+    - role: routeros_firewall
+      when: routeros_device_class == 'edge'
