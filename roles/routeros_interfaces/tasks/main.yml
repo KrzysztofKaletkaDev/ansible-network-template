@@ -159,17 +159,25 @@
       - {list: LAN, interface: "{{ routeros_wg_interface }}"}
       - {list: WAN, interface: "{{ routeros_pppoe_interface }}"}
 
-# --- VLAN filtering, server VLAN, trunk port ------------------------------
-# Order matters. The moment vlan-filtering flips on, the bridge enforces the
-# VLAN table and any port missing from it goes dark. On hardware keep the dead
-# man's switch (mechanism A) and a Safe Mode session up for this stretch.
+# --- server VLAN, trunk port, VLAN filtering ------------------------------
+# Order matters: the trunk port joins the bridge, then the VLAN table is
+# built, then the L3 server-VLAN interface, and only LAST does vlan-filtering
+# go on. The instant it flips, the bridge enforces the table and any port
+# missing from it goes dark — so the table must be complete first.
+# routeros_switch does the same steps in the same order. On hardware keep the
+# dead man's switch (mechanism A) and a Safe Mode session up for this stretch.
 
-- name: Włącz filtrowanie VLAN na mostku LAN
+- name: Dodaj port trunku do mostka LAN
+  # No pvid is set here, so the RouterOS default (1) applies — confirmed on CHR
+  # (`/interface bridge port print` shows pvid=1 on this port). Restricting the
+  # port to tagged frames via frame-types is a separate hardening decision that
+  # has not been made yet. The port must be a bridge member before the VLAN
+  # table below can reference it as tagged.
   community.routeros.api_modify:
-    path: interface bridge
+    path: interface bridge port
     data:
-      - name: "{{ routeros_lan_bridge }}"
-        vlan-filtering: true
+      - bridge: "{{ routeros_lan_bridge }}"
+        interface: "{{ routeros_interfaces_trunk_port }}"
 
 - name: Zbuduj tablicę VLAN (main + servers) na mostku LAN
   # Fully declarative: handle_absent_entries=remove drops any static VLAN row
@@ -187,14 +195,6 @@
       - bridge: "{{ routeros_lan_bridge }}"
         vlan-ids: "{{ routeros_vlans.servers.id }}"
         tagged: "{{ [routeros_interfaces_trunk_port, routeros_lan_bridge] | join(',') }}"
-
-- name: Dodaj port trunku (tylko tagged) do mostka LAN
-  # No access pvid — this port carries only tagged frames, to the CRS310.
-  community.routeros.api_modify:
-    path: interface bridge port
-    data:
-      - bridge: "{{ routeros_lan_bridge }}"
-        interface: "{{ routeros_interfaces_trunk_port }}"
 
 - name: Utwórz interfejs VLAN dla sieci serwerowej
   community.routeros.api_modify:
@@ -227,3 +227,13 @@
     data:
       - {list: LAN, interface: "{{ routeros_servers_vlan_interface }}"}
       - {list: SERVERS, interface: "{{ routeros_servers_vlan_interface }}"}
+
+- name: Włącz filtrowanie VLAN na mostku LAN
+  # LAST step in the role. Everything above — the trunk port, the VLAN table,
+  # the server-VLAN interface and its address — must already be in place: the
+  # bridge starts enforcing the table the moment this flips on.
+  community.routeros.api_modify:
+    path: interface bridge
+    data:
+      - name: "{{ routeros_lan_bridge }}"
+        vlan-filtering: true
