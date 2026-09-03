@@ -52,6 +52,9 @@ no serial console, a lockout means a factory reset. Three layers apply:
    `routeros_lan_bridge_ports`. Adding a port to the bridge tears down L2 on it
    before the bridge address is reachable. Add that port back in a separate run
    once connectivity via `routeros_lan_address` is confirmed.
+   Rehearsing this on CHR does **not** reproduce the failure — the CHR
+   management subnet differs from the bridge subnet, so RouterOS just migrates
+   the address onto the bridge. See `docs/bootstrap/README.md`.
 
 Test every change on the CHR VM first (`routeros_device_class: edge` in
 `group_vars/test/vars.yml`).
@@ -71,6 +74,13 @@ raise `invalid value for argument interface` on the real run — `--check` does
 not catch this. A four-NIC CHR (`docs/bootstrap/chr-test-vm.sh`) adds `ether3`
 and `ether4` as LAN stand-ins. Remove the override before running against
 hardware.
+
+Override nested variables such as `routeros_vlans` as a **whole dict**, not by
+key. Ansible's default `hash_behaviour` is `replace`, so
+`routeros_vlans.servers.gateway: "10.0.20.254"` in `group_vars/test/vars.yml`
+just creates a variable whose literal name contains dots and does nothing — the
+role keeps reading the `group_vars/all` value. Copy the full `routeros_vlans`
+mapping into the override.
 
 CHR does not test the real PPPoE session (tagged-VLAN uplink to the ISP) or the
 hardware switch chip — see `docs/bootstrap/README.md`.

@@ -42,6 +42,18 @@ are git-ignored.
   instance exercises the VLAN-table syntax and idempotence, but not the RB5009 ↔
   CRS310 trunk itself or how the hardware switch chip tags frames — those only
   show up on real hardware.
+- **Mechanism C (management port inside the bridge).** A deliberate rehearsal
+  with `ether1` added to `routeros_lan_bridge_ports` completed cleanly on CHR
+  (`ok=25 changed=24 failed=0`). It only worked because CHR's management address
+  (libvirt's `192.168.122.0/24`) and the bridge address (`10.0.0.0/24`) are on
+  **different subnets**: RouterOS migrated the management address onto the bridge
+  without a conflict, leaving the original `ether1` entry flagged `S` (SLAVE),
+  and L2 was never actually lost. On the RB5009 both addresses live in **one**
+  subnet — the bridge takes over the very network the operator is connected
+  through and claims the gateway address at the same time, while the hardware
+  switch chip is reprogrammed. That is a materially different operation.
+  Mechanism C stands unchanged, and a clean CHR run with the management port
+  bridged is **not** evidence that it is safe on hardware.
 
 CHR verifies role logic, idempotence, the API connection, and firewall / DHCP
 behaviour. It is not a performance test bed, and "it passed on CHR" is not

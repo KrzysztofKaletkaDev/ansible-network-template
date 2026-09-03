@@ -60,6 +60,12 @@ fails with `undefined variable`:
 
 Set the port lists and trunk to match the CHR VM's NIC count.
 
+Override nested variables such as `routeros_vlans` as a **whole dict**, not by
+key. Ansible's default `hash_behaviour` is `replace`, so
+`routeros_vlans.servers.gateway: "10.0.20.254"` in `group_vars/test/vars.yml`
+just creates a variable whose literal name contains dots and does nothing — the
+role keeps reading the `group_vars/all` value. Copy the full mapping.
+
 ```
 ansible-playbook -i inventory/hosts.yml site.yml --limit test --check --diff
 ansible-playbook -i inventory/hosts.yml site.yml --limit test --diff
