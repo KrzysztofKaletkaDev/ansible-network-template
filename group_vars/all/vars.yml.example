@@ -100,7 +100,13 @@ routeros_wg_peers:
   - {name: phone-spare, allowed_address: "10.100.0.5/32"}
 
 
-# --- routeros_interfaces: VLAN segmentation (edge only) ---------------------
+# --- VLAN segmentation (shared: edge + switch) -----------------------------
+# routeros_vlans and routeros_servers_vlan_interface are read by BOTH
+# routeros_interfaces (RB5009) and routeros_switch (CRS310) — the switch VLAN
+# table mirrors the router's. routeros_interfaces_trunk_port is the RB5009 side
+# only (the switch has its own routeros_switch_trunk_port in
+# group_vars/switches). The *_hosts / *_ip vars below are consumed later by
+# routeros_firewall.
 
 # The two VLANs the LAN is split into. id 1 = main (today's flat LAN, untagged
 # on the access ports); id 20 = servers. The ids are a design choice, not

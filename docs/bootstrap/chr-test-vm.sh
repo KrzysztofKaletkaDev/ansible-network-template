@@ -87,7 +87,7 @@ virt-install \
 # --- report the management lease ------------------------------------------
 mgmt_mac="$(virsh domiflist "$VM_NAME" | awk -v n="$MGMT_NET" '$3 == n {print $5}')"
 mgmt_ip=""
-for _ in $(seq 1 30); do
+for _ in $(seq 1 45); do   # ~90s — a cold CHR boot has overrun 60s
   mgmt_ip="$(virsh net-dhcp-leases "$MGMT_NET" 2>/dev/null \
     | awk -v m="$mgmt_mac" 'tolower($0) ~ tolower(m) {print $5}' | cut -d/ -f1)"
   [[ -n "$mgmt_ip" ]] && break

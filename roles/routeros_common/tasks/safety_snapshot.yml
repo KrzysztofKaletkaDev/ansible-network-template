@@ -11,9 +11,12 @@
 # the pre-run backup on its own. If the run is fine, disarm it afterwards:
 #   ansible-playbook -i inventory/hosts.yml site.yml --tags clear-rollback
 #
-# This is NOT a confirmed substitute for RouterOS Safe Mode — Safe Mode is bound
-# to the CLI/WinBox session, and whether it covers changes made over the API is
-# unverified (see CLAUDE.md, mechanism B).
+# This is a second, independent layer, not a replacement for RouterOS Safe Mode.
+# Safe Mode has since been confirmed on CHR to cover changes made by a parallel
+# API session and to roll them back if that session drops (see ADR-0002 and
+# roles/routeros_interfaces/README.md, mechanism B). Run both on hardware: Safe
+# Mode reverts within seconds of a dropped session; this scheduled rollback is
+# the backstop if Safe Mode itself was not armed.
 # ==============================================================================
 
 - name: Zrób kopię zapasową konfiguracji przed ryzykowną zmianą

@@ -45,9 +45,17 @@ cut management: the switch chip enforces the table the instant it flips on.
 
 ## Rehearsing on CHR
 
-Set `routeros_device_class: switch` in `group_vars/test/vars.yml` and override
-`routeros_switch_*_vlan_ports` / `routeros_switch_trunk_port` to match the CHR
-VM's NIC count.
+Every `routeros_switch_*` variable lives in `group_vars/switches` — the `test`
+group does not inherit it. For a CHR rehearsal, mirror all of them into
+`group_vars/test/vars.yml` alongside `routeros_device_class: switch`, or the run
+fails with `undefined variable`:
+
+- `routeros_switch_bridge`
+- `routeros_switch_mgmt_address`
+- `routeros_switch_trunk_port`
+- `routeros_switch_main_vlan_ports` / `routeros_switch_servers_vlan_ports`
+
+Set the port lists and trunk to match the CHR VM's NIC count.
 
 ```
 ansible-playbook -i inventory/hosts.yml site.yml --limit test --check --diff

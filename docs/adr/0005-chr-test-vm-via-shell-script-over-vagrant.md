@@ -26,7 +26,9 @@ The obvious-looking ways to stand it up don't fit:
 
 Provision the CHR test VM with a shell script, `docs/bootstrap/chr-test-vm.sh`:
 download the image, `qemu-img convert` to qcow2, define an isolated WAN network,
-`virt-install --import` a two-NIC domain, print the management address.
+`virt-install --import` a four-NIC domain (`ether1` management/API, `ether2` a
+stand-in WAN, `ether3`/`ether4` LAN stand-ins so the bridge-port loop and the
+bridge VLAN table have real interfaces to act on), print the management address.
 Teardown is two `virsh` commands. `docs/bootstrap/README.md` documents it and
 lists what CHR cannot cover.
 
