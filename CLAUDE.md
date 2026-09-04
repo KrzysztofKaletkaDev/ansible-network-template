@@ -136,9 +136,31 @@ reset do zera i konfiguracja od nowa przez WinBox. `routeros_interfaces` i
 - **Wartości numeryczne / listowe: API zwraca inną formę niż CLI.**
   `ip dns cache-size` = `4096` (nie `4096KiB`); `interface bridge vlan`
   `tagged` / `untagged` = string łączony przecinkami (`| join(',')`), nie lista
-  (`TypeError: unhashable type: 'list'`); `fasttrack-connection` wymusza
-  `hw-offload: true` — trzeba je podać jawnie, inaczej `changed=1` co przebieg.
+  (`TypeError: unhashable type: 'list'`).
   Klasa: wysłana wartość musi dokładnie odpowiadać temu, co API zwraca.
+- **Tylko ASCII w wartościach wysyłanych do API.** Pola trafiające na ścieżki
+  RouterOS (`data:`, `comment:`, `on-event:`, `source:`, `cmd:`, `name:`
+  wewnątrz `data:`) muszą być czystym ASCII — `librouteros` koduje protokół
+  jako ASCII i rzuca `'ascii' codec can't encode character '—'` przy
+  pierwszym polskim znaku albo półpauzie. Wywaliło się na `comment:` w
+  `safety_snapshot.yml`. **Nazwy zadań Ansible (`name:`) mogą zostać po
+  polsku** — nigdy nie idą na urządzenie. Audyt całego `roles/`:
+  ```bash
+  grep -rnP '[^\x00-\x7F]' --include='*.yml' roles/ | grep -vP ':\s*#' \
+    | grep -vP '^\S+:\d+:\s*-?\s*name:'
+  ```
+  musi być pusty (dziś jest — 98 linii z niż-ASCII to same `name:` i komentarze).
+- **Wersja RouterOS zmienia schemat API.** `hw-offload` na regule
+  `fasttrack-connection`: CHR 7.19.4 **wymagało** go jawnie (inaczej `changed=1`
+  co przebieg), sprzęt na 7.23.4 **odrzuca** je (`unknown parameter hw-offload`).
+  Metadane kolekcji `community.routeros` tego nie modelują — pole ma
+  `read_only=False` w obu wersjach, więc `handle_read_only` go nie dotyczy.
+  Dlatego CHR musi chodzić na tej samej wersji co sprzęt (patrz
+  `docs/bootstrap/README.md`), inaczej bramka testowa nie znaczy tego, co powinna.
+- **`| default(omit)` nie łapie pustego stringa.** `preshared-key` z pustą
+  wartością w vaulcie przechodzi do API i daje `failure: invalid preshared key` —
+  `default(omit)` podstawia się tylko przy **undefined**. Albo nie zakładaj klucza
+  w ogóle w vaulcie, albo użyj `| default(omit, true)`.
 - **Bramka idempotencji jest ŚLEPA na dryf na ścieżkach bez klucza głównego.**
   Przy dwóch sprzecznych trasach domyślnych (ECMP przez nieistniejącą bramę)
   trzeci przebieg zgłosił `changed=0`. Dla `ip route` / `ip firewall mangle`
