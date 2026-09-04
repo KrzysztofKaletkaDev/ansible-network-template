@@ -103,12 +103,17 @@
   # works without it, the private/public keypair alone provides the encryption.
   # handle_absent_entries defaults to ignore: a peer removed from
   # routeros_wg_peers is not deleted here — remove it by hand.
+  #
+  # default(omit, true), not default(omit): the second argument extends the
+  # default to falsy values. Plain default(omit) only substitutes when the key
+  # is *undefined*, so an empty string left in the Vault reaches the API and
+  # RouterOS 7.23.4 rejects it with 'failure: invalid preshared key'.
   community.routeros.api_modify:
     path: interface wireguard peers
     data:
       - interface: "{{ routeros_wg_interface }}"
         public-key: "{{ vault_routeros_wg_peers[item.name].public_key }}"
-        preshared-key: "{{ vault_routeros_wg_peers[item.name].preshared_key | default(omit) }}"
+        preshared-key: "{{ vault_routeros_wg_peers[item.name].preshared_key | default(omit, true) }}"
         allowed-address: "{{ item.allowed_address }}"
         comment: "{{ item.name }}"
   loop: "{{ routeros_wg_peers }}"
