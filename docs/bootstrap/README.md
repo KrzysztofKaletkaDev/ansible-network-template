@@ -6,8 +6,17 @@
 host to rehearse role changes before they touch real hardware.
 
 ```
-./docs/bootstrap/chr-test-vm.sh [routeros-version]   # default: 7.19.4
+./docs/bootstrap/chr-test-vm.sh [routeros-version]   # default: 7.23.4
 ```
+
+> **The CHR version must match the version the hardware runs.** The RouterOS API
+> schema is version-dependent and the `community.routeros` metadata does not
+> model it: `hw-offload` on a `fasttrack-connection` rule was *required* for
+> idempotence on CHR 7.19.4 and is *rejected* on hardware 7.23.4 (`unknown
+> parameter hw-offload`). A green run against a different version does not mean
+> the same play works on the box — it means it works on some other device.
+> When the hardware is upgraded, bump the default in `chr-test-vm.sh`, rebuild
+> the VM, and re-run the triple before trusting it again.
 
 It downloads the CHR image, converts it to qcow2, defines an isolated
 `chr-wan` network, and starts a `chr-test` domain with four NICs — `ether1` on
@@ -24,6 +33,33 @@ virsh destroy chr-test && virsh undefine chr-test --remove-all-storage
 
 The downloaded `chr-*.img*` / `chr-*.qcow2` files land next to the script and
 are git-ignored.
+
+### Rehearsing the whole procedure
+
+`verify-bootstrap.sh` walks the entire bootstrap end to end against a fresh CHR
+and stops wherever connectivity has to be confirmed by hand:
+
+```
+./docs/bootstrap/verify-bootstrap.sh              # vm, preflight, defconf, run
+./docs/bootstrap/verify-bootstrap.sh defconf run  # only these stages
+```
+
+- **vm** — destroys and recreates the `chr-test` domain from the image, then
+  stops for the manual account / SSH key / API bootstrap.
+- **preflight** — checks SSH, that the CHR's RouterOS version matches the
+  hardware, that the `test` group resolves to exactly one host, and that
+  `routeros_device_class` actually selects the roles under test (otherwise the
+  triple is three passes of `skipping`).
+- **defconf** — CHR ships **without** a `defconf`, so this stage *builds* an
+  RB5009-like one (bridge, `192.168.88.1/24`, DHCP, interface lists) and then
+  runs the teardown sequence against it. It exercises the command order and the
+  resulting state, not the real factory config.
+- **run** — `--check`, apply, apply again, asserting `changed=0` on the third.
+
+Every play is pinned to `--limit test`, and the script refuses to continue if
+that group resolves to anything other than a single host. It prints what it
+cannot verify — `device-mode`, the hardware switch chip, mechanism C — at both
+the start and the end of the run.
 
 ### What CHR does NOT test
 

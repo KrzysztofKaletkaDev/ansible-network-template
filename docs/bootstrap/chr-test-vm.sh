@@ -7,12 +7,17 @@
 # switch chip / fasttrack, and real throughput (the CHR Free licence caps
 # every interface at 1 Mbit/s). See README.md.
 #
-# Usage:  ./chr-test-vm.sh [ROUTEROS_VERSION]        (default: 7.19.4)
+# The default version MUST track the version the hardware runs. The RouterOS
+# API schema is version-dependent (hw-offload on fasttrack-connection was
+# required on 7.19.4 and is rejected on 7.23.4), so a CHR on a different
+# version is not a gate - it is a second, unrelated device.
+#
+# Usage:  ./chr-test-vm.sh [ROUTEROS_VERSION]        (default: 7.23.4)
 # Teardown:  virsh destroy chr-test && virsh undefine chr-test --remove-all-storage
 # =============================================================================
 set -euo pipefail
 
-ROS_VERSION="${1:-7.19.4}"
+ROS_VERSION="${1:-7.23.4}"
 VM_NAME="chr-test"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LIBVIRT_IMAGES="${LIBVIRT_IMAGES:-/var/lib/libvirt/images}"
