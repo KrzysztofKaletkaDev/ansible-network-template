@@ -87,6 +87,23 @@
 # --- filter (complete, ordered — owns the whole table) ---------------
 
 - name: Zastosuj reguły filtrujące (pełna, uporządkowana tabela)
+  # hw-offload is deliberately absent from the fasttrack-connection entry below:
+  # RouterOS 7.23.4 on hardware rejects it as an unknown API parameter on create
+  # ('Error while creating entry: unknown parameter hw-offload'), while CHR
+  # 7.19.4 both accepted and required it. Declaring it either way breaks one of
+  # the two RouterOS versions.
+  #
+  # handle_entries_content stays remove_as_much_as_possible, NOT ignore: this
+  # path has no primary key, and api_modify refuses handle_absent_entries=remove
+  # combined with handle_entries_content=ignore outright ('cannot be combined').
+  # If RouterOS 7.23 still reports hw-offload on read even though it rejects it
+  # on write, remove_as_much_as_possible will try to unset it every run and
+  # count the acknowledged no-op as changed=1 (the same bug this task hit
+  # before, in the opposite direction) — verify on hardware. The fix then is
+  # NOT handle_entries_content=ignore (invalid here); it is splitting the
+  # fasttrack rule into its own api_modify call with `restrict` on
+  # action=fasttrack-connection and handle_absent_entries=ignore, leaving this
+  # task's handle_absent_entries=remove + ensure_order covering every other rule.
   community.routeros.api_modify:
     path: ip firewall filter
     handle_absent_entries: remove
@@ -102,11 +119,8 @@
          dst-port: "{{ routeros_wg_listen_port }}", comment: "ansible: in WireGuard"}
       - {chain: input, action: drop, in-interface-list: WAN, comment: "ansible: in drop WAN"}
       # ----- chain forward -----
-      # hw-offload declared explicitly: fasttrack-connection enforces it as true
-      # regardless, and handle_entries_content would otherwise try to unset it
-      # every run and count the acknowledged (no-op) command as a change.
       - {chain: forward, action: fasttrack-connection, connection-state: "established,related",
-         hw-offload: true, comment: "ansible: fwd fasttrack"}
+         comment: "ansible: fwd fasttrack"}
       - {chain: forward, action: accept, connection-state: "established,related", comment: "ansible: fwd est/rel"}
       - {chain: forward, action: drop, connection-state: invalid, comment: "ansible: fwd invalid"}
       # anti-DoH: block :443 to known DoH resolvers from the LAN (the ad-blocker
