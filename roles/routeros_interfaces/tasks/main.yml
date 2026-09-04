@@ -35,7 +35,7 @@
 - name: Podłącz porty dostępowe (untagged) do mostka LAN
   # One entry per call: handle_absent_entries defaults to ignore, so a port
   # dropped from routeros_lan_bridge_ports is NOT detached automatically —
-  # remove it by hand. ether1 (WAN) and the trunk port are intentionally absent.
+  # remove it by hand. The WAN port and the trunk port are intentionally absent.
   community.routeros.api_modify:
     path: interface bridge port
     data:

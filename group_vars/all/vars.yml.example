@@ -61,8 +61,16 @@ routeros_common_disable_mac_recovery: false
 # --- routeros_interfaces (edge only) -----------------------------------------
 
 # LAN bridge: its name, the gateway address the router holds on it, and the
-# untagged access ports that join it. ether1 is the WAN uplink and stays out of
-# the bridge; the RB5009 -> CRS310 trunk port is added by a later commit, not here.
+# untagged access ports that join it. The WAN port and the RB5009 -> CRS310
+# trunk port stay out of this list (the trunk is added by its own task).
+#
+# Port assignment on the RB5009 (7x 1G on ether2-ether8, 2.5G on ether1,
+# 10G SFP+ on sfp-sfpplus1):
+#   ether1        -> trunk to the CRS310 (the only 2.5G copper port; the trunk
+#                    carries inter-VLAN traffic and benefits from 2.5G)
+#   ether2        -> WAN (1G is ~3x the 300/300 line rate — no bottleneck)
+#   ether3-ether8 -> LAN access, VLAN main (PoE-out for the cameras)
+#   sfp-sfpplus1  -> LAN access, VLAN main (spare; no module fitted today)
 routeros_lan_bridge: "bridge-lan"
 routeros_lan_address: "10.0.0.1/24"
 routeros_lan_bridge_ports:
@@ -72,11 +80,11 @@ routeros_lan_bridge_ports:
   - ether6
   - ether7
   - ether8
-  - sfp-plus1
+  - sfp-sfpplus1
 
 # WAN: the physical port to the ONT, the service-delimiting VLAN tag the ISP
 # carries PPPoE over, and the derived name of the VLAN sub-interface.
-routeros_wan_interface: "ether1"
+routeros_wan_interface: "ether2"
 routeros_wan_vlan_id: 35
 routeros_wan_vlan_interface: "vlan{{ routeros_wan_vlan_id }}-wan"
 
@@ -123,7 +131,9 @@ routeros_vlans:
 
 # RB5009 -> CRS310 trunk port: tagged for both VLANs, no access pvid. It is
 # deliberately NOT in routeros_lan_bridge_ports — a dedicated task adds it.
-routeros_interfaces_trunk_port: "ether2"
+# ether1 is the RB5009's only 2.5G copper port; the trunk carries all
+# inter-VLAN traffic, so it gets the fast port. WAN goes on 1G ether2.
+routeros_interfaces_trunk_port: "ether1"
 
 # Name of the server-VLAN sub-interface on the bridge — carries the router's
 # servers-VLAN gateway address and is the SERVERS interface-list member.

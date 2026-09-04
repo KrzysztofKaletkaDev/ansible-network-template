@@ -34,10 +34,12 @@ are git-ignored.
 - **Real throughput** — the CHR Free licence caps every interface at 1 Mbit/s.
 - **`--check` does not validate interface existence.** The `invalid value for
   argument interface` error only surfaces during an actual API call, not in
-  check mode. If `routeros_lan_bridge_ports` (or the CN2b VLAN table) lists
-  interfaces the CHR VM does not have — e.g. `ether3`–`ether8` / `sfp-plus1` on
-  a smaller instance — `--check` passes but the real run fails. Match the port
-  list to the VM's NIC count, or give the VM enough NICs via `chr-test-vm.sh`.
+  check mode. If `routeros_lan_bridge_ports` (or the VLAN table) lists interfaces
+  the CHR VM does not have — e.g. `ether3`–`ether8` / `sfp-sfpplus1` on a smaller
+  instance — `--check` passes but the real run fails. A typo in a port name is
+  the same trap: the RB5009's SFP+ port is `sfp-sfpplus1`, not `sfp-plus1`, and
+  the wrong name would sail through check mode. Match the port list to the VM's
+  NIC count, or give the VM enough NICs via `chr-test-vm.sh`.
 - **The trunk between two physical devices.** `routeros_switch` on a single CHR
   instance exercises the VLAN-table syntax and idempotence, but not the RB5009 ↔
   CRS310 trunk itself or how the hardware switch chip tags frames — those only

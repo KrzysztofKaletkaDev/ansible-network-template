@@ -69,11 +69,13 @@ ansible-playbook -i inventory/hosts.yml site.yml --limit test --diff   # must re
 
 Override `routeros_lan_bridge_ports` in `group_vars/test/vars.yml` to match the
 CHR VM's actual interface count. A two-NIC CHR has only `ether1` (mgmt) and
-`ether2` (stand-in WAN); `ether3`–`ether8` and `sfp-plus1` do not exist and
+`ether2` (stand-in WAN); `ether3`–`ether8` and `sfp-sfpplus1` do not exist and
 raise `invalid value for argument interface` on the real run — `--check` does
-not catch this. A four-NIC CHR (`docs/bootstrap/chr-test-vm.sh`) adds `ether3`
-and `ether4` as LAN stand-ins. Remove the override before running against
-hardware.
+not catch this. This is the same class of bug as a typo in a port name (the
+RB5009's SFP+ port is `sfp-sfpplus1`, not `sfp-plus1`): check mode passes, the
+real API call fails. A four-NIC CHR (`docs/bootstrap/chr-test-vm.sh`) adds
+`ether3` and `ether4` as LAN stand-ins. Remove the override before running
+against hardware.
 
 Override nested variables such as `routeros_vlans` as a **whole dict**, not by
 key. Ansible's default `hash_behaviour` is `replace`, so
