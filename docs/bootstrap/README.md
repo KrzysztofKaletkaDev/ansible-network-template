@@ -100,6 +100,162 @@ behaviour. It is not a performance test bed, and "it passed on CHR" is not
 "it is safe on hardware" — the first real run still goes through the dead man's
 switch (mechanism A) and, once verified, Safe Mode. See `CLAUDE.md`.
 
+## RB5009 first-run sequence (option B port layout)
+
+Everything below this heading is reference material. **This section is the path.**
+Run it top to bottom, once, without skipping back. Each step says what to type,
+where to type it, and what has to be true before you move on.
+
+The layout it assumes (option B): `ether1` = 2.5G trunk to the CRS310, `ether2` =
+WAN to the ONT, `ether3`–`ether8` = PoE access ports for the cameras,
+`sfp-sfpplus1` = spare access port. All six LAN ports are in
+`routeros_lan_bridge_ports`, so mechanism C means temporarily taking **one** of
+them out — the one your cable is in. That is why this needs **two Ansible runs
+and a cable move**. `ether3` is used as the cable port throughout; substitute
+whichever you actually use.
+
+Terminals used below:
+
+- **[router]** — a session on the RB5009 (Winbox terminal, or SSH once step 3 is done)
+- **[laptop]** — a second terminal on the control node, not on the router
+- **[winbox]** — the Winbox GUI, needed where there is no working IP path
+
+---
+
+**0. Unlock `device-mode`.** `[router]` — see
+[Step zero](#step-zero-on-the-rb5009-unlock-device-mode-or-mechanism-a-is-dead).
+Without this the dead man's switch cannot arm and you run steps 5 and 9 with no
+safety net.
+→ *Before continuing:* `/system device-mode print` shows `scheduler=yes`, and the
+router has rebooted once after the button press.
+
+**1. Update RouterOS and write down the recovery details.** `[router]` — bring
+the box to the same version the CHR runs (`chr-test-vm.sh` default; see the
+version rule at the top of this file). Record the serial number and the WAN
+port's MAC from `/system routerboard print` and `/interface ethernet print`.
+→ *Before continuing:* the version matches CHR, and the serial + MAC are written
+down somewhere that is not the router.
+
+**2. Get to a known starting state.** Two paths — pick by where you are:
+
+| You are here | Do this |
+|---|---|
+| Factory box, or you want a clean slate | [Factory-config teardown](#factory-config-teardown-on-the-rb5009) — `reset-configuration no-defaults=yes` |
+| Someone pressed the physical Reset button; you see a full `defconf` | [Recovering from a hardware reset button press](#recovering-from-a-hardware-reset-button-press) |
+
+→ *Before continuing:* no `bridge` interface, no DHCP server, and
+`/interface list member print` is empty. A leftover member here is enough to have
+the firewall drop your SSH in step 5.
+
+**3. Management address, account, API, SSH key.** `[winbox]` — the box has no IP
+yet, so this is MAC-Winbox.
+
+```
+/ip address add address=192.168.99.1/24 interface=ether3
+/user add name=netadmin group=full password=<vault_routeros_api_password>
+/ip service enable api
+```
+
+Then import the SSH public key — file-based, see
+[One-time RouterOS bootstrap](#one-time-routeros-bootstrap-outside-ansible) step 2.
+Give the laptop a static address in the same subnet (e.g. `192.168.99.2/24`).
+→ *Before continuing:* `[laptop]` `ssh netadmin@192.168.99.1` works **with the
+key, not a password**, and the API answers.
+
+**4. Point the repo at the temporary address and apply mechanism C.**
+`[laptop]` — in the gitignored local files:
+
+- `group_vars/all/vars.yml` — remove `ether3` from `routeros_lan_bridge_ports`;
+- `inventory/hosts.yml` — set the edge host's `ansible_host` to `192.168.99.1`;
+- `group_vars/all/vars.yml` — set `routeros_controller_ip` to the laptop's
+  current address (`192.168.99.2`), **not** the production one. See
+  [`routeros_controller_ip`](#routeros_controller_ip-must-match-the-address-you-connect-from-now).
+
+→ *Before continuing:* `grep ether3 group_vars/all/vars.yml` returns nothing from
+the bridge-port list, and `ansible-inventory --host <edge host>` shows the
+temporary address.
+
+**5. Safe Mode, then the first run.** `[router]` — open a session and press
+`Ctrl-X`; leave it open and untouched for the whole run (mechanism B). Then
+`[laptop]`:
+
+```
+ansible-playbook -i inventory/hosts.yml site.yml --limit edge --diff --ask-vault-pass
+```
+
+→ *Before continuing:* the play finished, and the Safe Mode session is still
+open and has not rolled anything back.
+
+**6. Move the cable — and the laptop's address, at the same time.** Physically
+move the cable from `ether3` to a port that **is** in `bridge-lan` (e.g.
+`ether4`), then `[laptop]` change the laptop's address to the bridge subnet:
+either take DHCP, or set the static address `routeros_controller_ip` will hold in
+production.
+
+> **Moving the cable without changing the laptop's address looks exactly like a
+> failed run.** The laptop keeps a `192.168.99.2` address on a port that is now
+> in `bridge-lan`, which is a different subnet — nothing answers, and there is
+> no way to tell that apart from a router that has locked you out. Do both, then
+> judge.
+
+→ *Before continuing:* the laptop has an address in the `routeros_lan_address`
+subnet.
+
+**7. Connectivity gate.** `[laptop]` — this is the gate. Do not go past it:
+
+```
+ping <routeros_lan_address host part>     # the bridge-lan gateway
+ssh netadmin@<same address>
+```
+
+→ *Before continuing:* **both** answer. If they do not, you still have the
+`ether3` path (move the cable back) and the Safe Mode session from step 5. Use
+them. Do not "fix it later".
+
+**8. Drop the temporary setup.** `[router]`:
+
+```
+/ip address remove [find interface=ether3]
+```
+
+`[laptop]` — put `ether3` back into `routeros_lan_bridge_ports`, and set
+`ansible_host` and `routeros_controller_ip` to their production values.
+→ *Before continuing:* `routeros_lan_bridge_ports` holds all six ports again.
+
+**9. Second run, and idempotence.** `[laptop]` — run the same command as step 5,
+twice.
+
+The second of the two is **not** expected to be a clean `changed=0`. These are
+expected and are not drift:
+
+- **two `changed` from the config backup** — `safety_snapshot.yml` is pulled in by
+  both `routeros_interfaces` and `routeros_firewall`, and its backup task carries
+  `changed_when: true` deliberately (the API reports nothing useful for
+  `/system backup save`);
+- **`/ip dns` churns while the upstream resolver is down.** `routeros_dns` sets
+  `servers` to `routeros_dns_primary_upstream` (the "alma" VM), Netwatch sees it
+  unreachable and flips it to the public fallback, the next run sets it back.
+  This repeats every run until that host is actually up. Expected during the
+  router bootstrap, since the server VLAN has nothing on it yet.
+
+Anything else reporting `changed` on the third pass is real drift — find it in
+the `--diff` output before continuing.
+
+**10. Stand down.** `[laptop]`:
+
+```
+ansible-playbook -i inventory/hosts.yml site.yml --limit edge --tags clear-rollback --ask-vault-pass
+```
+
+`[router]` — only now close the Safe Mode session.
+→ *Done when:* `/system scheduler print` shows no `ansible-rollback` entry. Leaving
+it armed reloads the pre-run backup ten minutes later and undoes everything.
+
+The CRS310 comes after this, and only after: see
+[One-time CRS310 bootstrap](#one-time-crs310-bootstrap-cable-it-straight-to-a-laptop).
+
+---
+
 ## Step zero on the RB5009: unlock `device-mode` (or mechanism A is dead)
 
 A factory RB5009 ships with `/system device-mode mode=home`, which has
@@ -133,7 +289,7 @@ Notes from the hardware run:
   **not verified** — if the DNS fallback never fires on hardware, check
   `device-mode` before debugging the role.
 
-## Factory-config teardown on the RB5009 (do this first, on hardware)
+## Factory-config teardown on the RB5009
 
 A factory RB5009 ships with a `defconf`: a bridge **named `bridge`** holding
 `ether2`–`ether8` + the SFP+ port, `192.168.88.1/24` on it, a DHCP server, a
