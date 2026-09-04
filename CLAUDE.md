@@ -44,6 +44,16 @@ urządzeń dla configu). Osobne repo od warstwy usług (`ansible-homelab-templat
 - Nie wyłączaj wbudowanego `admin` ani nie zawężaj API do IP kontrolera przed
   potwierdzeniem, że konto zarządzające (`routeros_api_user`) działa — oba to
   odroczone kroki za tagami `disable-admin` / `restrict-api` + `never`.
+- **Przed pierwszym przebiegiem na sprzęcie:** oba vaulty muszą być zaszyfrowane
+  (`ansible-vault encrypt group_vars/routers/vault.yml` i
+  `group_vars/switches/vault.yml`), a `group_vars/all/vars.yml` musi zawierać
+  realne wartości, nie kopię `.example` (sieć `10.0.0.0/24` i fikcyjne MAC-i =
+  nietknięty szablon → przenumerowanie LAN-u i zerwane rezerwacje). Sprawdzenie:
+  `ansible-vault view group_vars/routers/vault.yml` musi zapytać o hasło.
+- **Do udostępniania repo na zewnątrz używać `git archive HEAD`, nigdy `tar` na
+  katalogu roboczym.** `tar` zabierze gitignorowane `inventory/hosts.yml`,
+  `group_vars/**/vars.yml` i odszyfrowany `vault.yml` — czyli dokładnie te
+  pliki, które nigdy nie mają opuścić kontrolera.
 
 ## Pierwsze uruchomienie na sprzęcie (nie pomijać)
 
