@@ -28,6 +28,12 @@ through to the default `input` policy (accept) — that is deliberate (it keeps 
 CHR management NIC on `ether1` reachable), but a *new* production interface left
 out of the lists gets no forward filtering at all.
 
+`routeros_interfaces` puts **three** interfaces in `WAN`: `pppoe-out1`, the
+physical WAN port, and the WAN VLAN interface (`vlan35-wan`). Only `pppoe-out1`
+carries the routed traffic, but IP packets can also land on the bare port or on
+`vlan35-wan` outside the PPPoE session — without all three in `WAN`, that
+traffic would miss the `drop in-interface-list=WAN` rule.
+
 ## Running it (hardware)
 
 1. **Mechanism A** — the dead man's switch is pulled in at the top of the role

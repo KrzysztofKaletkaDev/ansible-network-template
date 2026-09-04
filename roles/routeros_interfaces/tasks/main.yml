@@ -154,12 +154,21 @@
 - name: Przypisz interfejsy do list LAN i WAN
   # The server VLAN adds itself to LAN and SERVERS further down, once its
   # sub-interface exists.
+  #
+  # The physical WAN port and the WAN VLAN interface are in the WAN list too,
+  # not just pppoe-out1: the firewall's input chain ends with
+  # `drop in-interface-list=WAN`, so IP traffic arriving on the bare port or on
+  # vlan35-wan (outside the PPPoE session) would otherwise fall through to the
+  # default accept. PPPoE itself is unaffected — discovery and session run on
+  # ethertype 0x8863/0x8864, which the IP firewall does not see.
   community.routeros.api_modify:
     path: interface list member
     data:
       - {list: LAN, interface: "{{ routeros_lan_bridge }}"}
       - {list: LAN, interface: "{{ routeros_wg_interface }}"}
       - {list: WAN, interface: "{{ routeros_pppoe_interface }}"}
+      - {list: WAN, interface: "{{ routeros_wan_interface }}"}
+      - {list: WAN, interface: "{{ routeros_wan_vlan_interface }}"}
 
 # --- server VLAN, trunk port, VLAN filtering ------------------------------
 # Order matters: the trunk port joins the bridge, then the VLAN table is
