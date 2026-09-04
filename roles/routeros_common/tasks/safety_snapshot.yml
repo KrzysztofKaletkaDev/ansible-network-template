@@ -32,4 +32,5 @@
       - name: ansible-rollback
         interval: 10m
         on-event: "/system backup load name=before-ansible-run"
-        comment: "Armed by Ansible — remove after a confirmed run (--tags clear-rollback)"
+        # ASCII only: RouterOS API rejects non-ASCII in field values.
+        comment: "Armed by Ansible - remove after a confirmed run (--tags clear-rollback)"
