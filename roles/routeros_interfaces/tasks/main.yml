@@ -98,7 +98,9 @@
         comment: "Managed by Ansible (routeros_interfaces)"
 
 - name: Skonfiguruj peerów WireGuard
-  # Public/preshared keys come from the Vault, keyed by the peer 'name'.
+  # Public key comes from the Vault, keyed by the peer 'name'. preshared_key is
+  # OPTIONAL: if a peer has none in the Vault the field is omitted — WireGuard
+  # works without it, the private/public keypair alone provides the encryption.
   # handle_absent_entries defaults to ignore: a peer removed from
   # routeros_wg_peers is not deleted here — remove it by hand.
   community.routeros.api_modify:
@@ -106,7 +108,7 @@
     data:
       - interface: "{{ routeros_wg_interface }}"
         public-key: "{{ vault_routeros_wg_peers[item.name].public_key }}"
-        preshared-key: "{{ vault_routeros_wg_peers[item.name].preshared_key }}"
+        preshared-key: "{{ vault_routeros_wg_peers[item.name].preshared_key | default(omit) }}"
         allowed-address: "{{ item.allowed_address }}"
         comment: "{{ item.name }}"
   loop: "{{ routeros_wg_peers }}"

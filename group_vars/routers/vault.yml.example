@@ -25,18 +25,20 @@ vault_routeros_pppoe_password: "PPPOE_PASSWORD_CHANGE_ME"
 #   /interface/wireguard/print
 vault_routeros_wg_private_key: "SERVER_WIREGUARD_PRIVATE_KEY_CHANGE_ME"
 
-# Per-peer public key + preshared key, keyed by the peer 'name' in
-# routeros_wg_peers (group_vars/all/vars.yml). One keypair and PSK per device.
+# Per-peer public key, keyed by the peer 'name' in routeros_wg_peers
+# (group_vars/all/vars.yml). One keypair per device.
+#
+# preshared_key is OPTIONAL — add it per peer only if you want the extra
+# symmetric layer; when absent, routeros_interfaces omits the field:
+#   phone:
+#     public_key: "..."
+#     preshared_key: "..."   # optional
 vault_routeros_wg_peers:
   phone:
     public_key: "PEER_PUBLIC_KEY_CHANGE_ME"
-    preshared_key: "PEER_PRESHARED_KEY_CHANGE_ME"
   tablet:
     public_key: "PEER_PUBLIC_KEY_CHANGE_ME"
-    preshared_key: "PEER_PRESHARED_KEY_CHANGE_ME"
   laptop:
     public_key: "PEER_PUBLIC_KEY_CHANGE_ME"
-    preshared_key: "PEER_PRESHARED_KEY_CHANGE_ME"
   phone-spare:
     public_key: "PEER_PUBLIC_KEY_CHANGE_ME"
-    preshared_key: "PEER_PRESHARED_KEY_CHANGE_ME"
