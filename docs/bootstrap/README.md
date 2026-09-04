@@ -103,23 +103,68 @@ and you must use Netinstall instead.
 ```
 /user add name=netadmin group=full password=<vault_routeros_api_password>
 /ip service enable api
-/ip address add address=192.168.99.1/24 interface=ether2
+/ip address add address=192.168.99.1/24 interface=ether3
 ```
 
 (`netadmin` here is a placeholder for whatever `routeros_api_user` is set to —
 create the account under that name.)
 
-The temporary address goes on the **WAN port** on purpose: the WAN port never
-joins the bridge, so this address survives the entire `routeros_interfaces` run.
-It is the same goal as mechanism C — a management address that outlives the
-bridge rebuild — reached without pulling a port out of
-`routeros_lan_bridge_ports`.
+**Put the temporary address on a LAN access port that you have removed from
+`routeros_lan_bridge_ports`** — plain mechanism C. `ether3` above is an example;
+use whichever port the cable is actually in, and take that same port out of
+`routeros_lan_bridge_ports` in the local `group_vars/all/vars.yml` before the
+run. A port that is in neither the bridge nor an interface list keeps working:
+it never joins `bridge-lan`, and the firewall's `input` chain ends with
+`drop in-interface-list=WAN`, not `drop all`, so traffic arriving on a
+list-less interface falls through to the default `input` policy (accept).
+
+> **Do not use the WAN port for this.** An earlier revision of this document put
+> the temporary address on `ether2`. That is now a lockout:
+> `routeros_interfaces` puts `routeros_wan_interface` into interface list `WAN`,
+> and the `input` chain drops everything from `WAN` except WireGuard. ICMP still
+> answers (the `accept protocol=icmp` rule sits above the drop and matches on any
+> interface), so the router looks alive while SSH and the API are gone — see
+> "Symptom: the router pings but SSH and the API are dead" below.
 
 Then import the SSH key and confirm login (next section), point the `edge`
-inventory group at `192.168.99.1`, and run `routeros_common` +
-`routeros_interfaces`. **Remove the temporary address only after** the router is
-cabled into the real network and connectivity via the `bridge-lan` gateway
-address is confirmed.
+inventory group at the temporary address, and run `routeros_common` +
+`routeros_interfaces`. **Remove the temporary address and put the port back into
+`routeros_lan_bridge_ports` only after** the router is cabled into the real
+network and connectivity via the `bridge-lan` gateway address is confirmed.
+
+### `routeros_controller_ip` must match the address you connect from *now*
+
+`routeros_controller_ip` is the control node's own address, and it is used in two
+places that both assume it is current for **this** run:
+
+- `roles/routeros_common/tasks/restrict_api_access.yml` — pins
+  `/ip service api address=<controller>/32` (deferred; `--tags restrict-api`);
+- the firewall rule `ansible: fwd accept control node to switch`, which is what
+  lets Ansible reach the CRS310's management address in the server VLAN.
+
+During bootstrap the control node is cabled into the router and sits in the
+temporary subnet (`192.168.99.0/24` above, or `192.168.88.0/24` on a
+button-reset box) — **not** in the production LAN, and not on the Wi-Fi address
+it will use afterwards. Set `routeros_controller_ip` to the cabled address for
+the bootstrap runs and change it back once the router is in place, or the
+switch rule points at an address that is no longer yours.
+
+### Symptom: the router pings but SSH and the API are dead
+
+Almost always the interface you are connected through ended up in interface list
+`WAN`. The `input` chain accepts ICMP before it drops `WAN`, so ping keeps
+working while TCP 22 / 8728 is dropped. Check, over Winbox / MAC-Winbox:
+
+```
+/interface list member print          # is your port in WAN?
+/ip service print                     # did a restrict-api run pin an address?
+/ip firewall filter print             # confirm the input chain order
+```
+
+Two ways to get there: the temporary address on the WAN port (above), or a
+button-reset box whose `defconf` `WAN` list still holds `ether1` — the
+interface-list tasks use `handle_absent_entries: ignore`, so stale `defconf`
+members are not cleaned up. Fix the list membership, do not disable the rule.
 
 ## One-time RouterOS bootstrap (outside Ansible)
 
