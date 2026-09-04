@@ -30,9 +30,9 @@ missing `qnap-native` / `alma` — those names are load-bearing for
 
 ## Bootstrap / hardware note
 
-Remove the factory `defconf` DHCP server, pool and network during bootstrap —
-`routeros_interfaces` builds `bridge-lan`, not the factory `bridge`, so `defconf`
-would be left orphaned on an interface with no clients.
+The factory `defconf` DHCP server, pool and network (on the `bridge` the roles
+do not use) must be gone before the first hardware run — it is wiped as part of
+the RB5009 factory-config teardown in `docs/bootstrap/README.md`.
 
 ## Rehearsing on CHR
 
