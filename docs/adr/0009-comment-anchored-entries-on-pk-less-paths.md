@@ -14,6 +14,16 @@ matching on **full entry content**: change any managed field and the entry no
 longer matches, so it is created anew, and because `handle_absent_entries`
 defaults to `ignore` the previous entry is left in place.
 
+**Scope.** This ADR applies to paths that `community.routeros.api_modify`
+exposes without a primary key. As of `community.routeros` 3.21.0 that is
+`ip route`, `ip firewall mangle`, `ip dns static` and `tool netwatch`, but the
+criterion is binding, not the list — check `primary_keys` in the collection's
+`_api_data.py` before assuming a new path is in or out of scope. Paths that do
+have a primary key are out of scope and are managed with plain `api_modify`,
+without a comment anchor and without a paired cleanup task: `interface bridge`
+(`name`), `interface bridge port` (`interface`), `ip address`
+(`address`, `interface`), `interface list member` (`list`, `interface`).
+
 This was verified on CHR 7.19.4, not assumed:
 
 - **Test 1 — a hand-added static route (comment `manual-test`) survived an
