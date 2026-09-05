@@ -85,6 +85,29 @@ reset do zera i konfiguracja od nowa przez WinBox. `routeros_interfaces` i
   jest tagowany na trunku — fabryczny switch przez niego nieosiągalny). Patrz
   `docs/bootstrap/README.md`.
 
+## Bramka idempotencji
+
+Trzeci przebieg na sprzęcie (krok 9 w `docs/bootstrap/README.md`) musi być
+`changed=0`, poza zadaniami, którym **wolno** zgłosić `changed` nawet wtedy:
+
+- **`safety_snapshot.yml`** (wciągany przez `routeros_interfaces` i
+  `routeros_firewall`) — task backupu ma `changed_when: true` na stałe, bo API
+  nie zwraca nic użytecznego dla `/system backup save`.
+- **`/ip dns` w `routeros_dns`, dopóki `alma` (ADR-0008) nie stoi pod swoim
+  adresem w VLAN-ie `servers`.** Netwatch widzi
+  `routeros_dns_primary_upstream` jako nieosiągalny, przełącza `servers` na
+  fallback co przebieg, a kolejny przebieg przełącza z powrotem. Ustaje, gdy
+  `alma` faktycznie odpowiada na tym adresie.
+
+Każdy inny `changed` na trzecim przebiegu to realny dryf — zatrzymaj się i
+znajdź go w `--diff`, zanim pójdziesz dalej.
+
+**Reguła przerwania pracy na sprzęcie:** dwa lockouty pod rząd (dowolny
+mechanizm ratunkowy — A, B lub C — musiał zadziałać dwa razy z rzędu) = stop na
+dziś. Wróć do rehearsalu na CHR zamiast próbować dalej na sprzęcie. Powtórny
+lockout bez zmiany podejścia znaczy, że przyczyna nie została zrozumiana, nie
+że kolejna próba się uda.
+
 ## Struktura, którą warto znać
 
 - **`site.yml` — jeden play, `hosts: routers`, `connection: local`.** Brak
