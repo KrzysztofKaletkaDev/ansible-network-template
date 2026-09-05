@@ -39,6 +39,12 @@
 #     RB5009-like config and then tears it down, so it exercises the command
 #     sequence and the resulting state, NOT the real factory config.
 #   * PPPoE over VLAN 35, PoE, and real throughput. See README.md.
+#   * stage_defconf's step (b) dhcp-client removal is CHR-only. It filters out
+#     ether1 because ether1 is this rig's management NIC; README.md's real
+#     hardware procedure uses the unfiltered '/ip dhcp-client remove [find]'
+#     because the RB5009's dhcp-client sits on the WAN port instead. A clean
+#     run here does not exercise the unfiltered command the RB5009 actually
+#     runs.
 # =============================================================================
 set -uo pipefail
 
@@ -164,7 +170,13 @@ stage_defconf() {
   ok "(a) temporary address on ether3 added"
   ros '/ip address print where interface=ether3' | sed 's/^/      /'
 
-  ros '/ip dhcp-client remove [find]'                                            || warn "(b) no dhcp-client"
+  # Diverges from README.md's unfiltered '/ip dhcp-client remove [find]'. On
+  # the RB5009 the dhcp-client lives on the WAN port, never on the management
+  # path used during teardown, so removing all of them there is safe. On this
+  # CHR rig ether1 IS the management NIC and its dhcp-client is what holds the
+  # address ros() is SSHing to - an unfiltered remove cuts the session this
+  # whole script depends on. Do not backport this filter to README.md.
+  ros '/ip dhcp-client remove [find where interface!=ether1]'                   || warn "(b) no dhcp-client"
   ros '/ip dhcp-server remove [find]'                                            || die "(b) dhcp-server remove failed"
   ros '/ip dhcp-server network remove [find]'                                    || die "(b) dhcp network remove failed"
   ros '/ip pool remove [find]'                                                   || die "(b) pool remove failed"
