@@ -210,7 +210,8 @@
   # not listed here (dynamic rows learned by vlan-filtering are left alone).
   #
   # Which side the bridge itself belongs on follows where that VLAN's L3
-  # address is reached from — it is NOT a blanket "the CPU needs both VLANs":
+  # address is reached from (ADR-0010) — it is NOT a blanket "the CPU needs
+  # both VLANs":
   #   - main: routeros_lan_address sits DIRECTLY on bridge-lan, so the CPU
   #     speaks this VLAN untagged and the bridge belongs in 'untagged' next to
   #     the access ports. Listing it as tagged (which this task used to do)

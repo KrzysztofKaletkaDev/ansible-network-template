@@ -19,3 +19,4 @@ decision is known but lands with a role not yet written.
 | [0007](0007-crs310-switch-in-the-same-repo.md) | The CRS310 switch lives in this repository, not its own | Accepted |
 | [0008](0008-qnap-as-two-firewall-endpoints.md) | The QNAP is two firewall endpoints | Accepted |
 | [0009](0009-comment-anchored-entries-on-pk-less-paths.md) | Comment-anchored entries on PK-less paths | Accepted |
+| [0010](0010-bridge-vlan-membership-follows-the-l3-attachment-point.md) | Bridge VLAN membership follows the L3 attachment point | Accepted |

@@ -112,7 +112,7 @@ graph TD
 │   ├── switches/vault.yml.example # switch secrets — a different password
 │   └── test/{vars,vault}.yml.example
 ├── docs/
-│   ├── adr/                       # Architecture Decision Records (0001–0009)
+│   ├── adr/                       # Architecture Decision Records (0001–0010)
 │   └── bootstrap/                 # chr-test-vm.sh + the one-time hardware bootstrap
 └── roles/
     ├── routeros_common/           # identity, time, account, service hardening

@@ -145,7 +145,7 @@ lockout bez zmiany podejścia znaczy, że przyczyna nie została zrozumiana, nie
   (`routeros_qnap_native_ip`) i VM „alma" (`routeros_alma_ip`), każdy własny
   adres w VLAN-ie serwerowym. `routeros_servers_vlan_hosts` MUSI zawierać wpisy
   `qnap-native` i `alma` — `routeros_dhcp` to asserta.
-- ADR-y: `docs/adr/` (0001–0009, wszystkie `Accepted`). Każdy opisuje decyzję
+- ADR-y: `docs/adr/` (0001–0010, wszystkie `Accepted`). Każdy opisuje decyzję
   już obowiązującą w kodzie.
 
 ## Pułapki tego repo
@@ -213,8 +213,9 @@ lockout bez zmiany podejścia znaczy, że przyczyna nie została zrozumiana, nie
   adres danego VLAN-u. **CHR tego nie złapie**, bo sesja zarządzania idzie tam
   przez `ether1` poza mostkiem (`routeros_lan_bridge_ports` na teście to sam
   `ether3`) — adres mostka nigdy nie jest ścieżką zarządzania, więc przebieg
-  jest czysty mimo martwego VLAN-u 1. Ta sama klasa co „Mechanizm C jest
-  nieodtwarzalny na CHR".
+  jest czysty mimo martwego VLAN-u 1. Reguła i sankcjonowany rozjazd między
+  `routeros_interfaces` a `routeros_switch` — **ADR-0010**. Ta sama klasa co
+  „Mechanizm C jest nieodtwarzalny na CHR".
 - **`vlan-filtering: yes` na sprzętowym switch-chipie = najczęstszy
   self-lockout.** Mostek zaczyna egzekwować tablicę VLAN w chwili włączenia —
   niekompletna tablica ucina port. CHR obowiązkowy, mechanizm C.
