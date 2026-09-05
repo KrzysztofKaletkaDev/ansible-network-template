@@ -67,7 +67,16 @@
   # Fully declarative: handle_absent_entries=remove drops any static VLAN row
   # not listed here (dynamic rows are left alone). The bridge itself is tagged
   # on the servers VLAN only — that is the VLAN that carries the switch's
-  # management address; it does not need to be on VLAN main.
+  # management address, on the vlan-servers sub-interface, which terminates
+  # tagged frames; it does not need to be on VLAN main at all.
+  #
+  # DELIBERATE DIVERGENCE from routeros_interfaces, whose VLAN main row has
+  # bridge-lan in 'untagged'. Same rule on both boxes — the bridge goes
+  # wherever that VLAN's own L3 address is reached from — applied to different
+  # L3 layouts: the RB5009 carries routeros_lan_address directly on bridge-lan
+  # (untagged CPU path), while this switch has no address on VLAN main, so its
+  # bridge is absent from that row entirely. Everything else about the two
+  # tables still mirrors, task order around vlan-filtering included.
   community.routeros.api_modify:
     path: interface bridge vlan
     handle_absent_entries: remove

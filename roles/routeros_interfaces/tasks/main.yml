@@ -198,16 +198,29 @@
 - name: Zbuduj tablicę VLAN (main + servers) na mostku LAN
   # Fully declarative: handle_absent_entries=remove drops any static VLAN row
   # not listed here (dynamic rows learned by vlan-filtering are left alone).
-  # 'tagged' includes the bridge itself so the CPU keeps both VLANs — without
-  # that, the router loses its address on bridge-lan once filtering is enforced.
+  #
+  # Which side the bridge itself belongs on follows where that VLAN's L3
+  # address is reached from — it is NOT a blanket "the CPU needs both VLANs":
+  #   - main: routeros_lan_address sits DIRECTLY on bridge-lan, so the CPU
+  #     speaks this VLAN untagged and the bridge belongs in 'untagged' next to
+  #     the access ports. Listing it as tagged (which this task used to do)
+  #     makes the CPU expect 802.1Q frames that never arrive: confirmed on the
+  #     RB5009 — once vlan-filtering flips on, the access ports keep link and
+  #     lose all L3, and moving bridge-lan to 'untagged' fixes it immediately.
+  #   - servers: reached through the vlan-servers sub-interface created below,
+  #     which terminates tagged frames, so there the bridge stays in 'tagged'.
+  # The untagged CPU path additionally depends on the bridge's own pvid being
+  # routeros_vlans.main.id; RouterOS defaults a bridge to pvid=1, which is what
+  # main.id is here, so no pvid is set explicitly. Change main.id away from 1
+  # and this row needs an explicit pvid on the bridge to keep working.
   community.routeros.api_modify:
     path: interface bridge vlan
     handle_absent_entries: remove
     data:
       - bridge: "{{ routeros_lan_bridge }}"
         vlan-ids: "{{ routeros_vlans.main.id }}"
-        untagged: "{{ routeros_lan_bridge_ports | join(',') }}"
-        tagged: "{{ [routeros_interfaces_trunk_port, routeros_lan_bridge] | join(',') }}"
+        untagged: "{{ (routeros_lan_bridge_ports + [routeros_lan_bridge]) | join(',') }}"
+        tagged: "{{ routeros_interfaces_trunk_port }}"
       - bridge: "{{ routeros_lan_bridge }}"
         vlan-ids: "{{ routeros_vlans.servers.id }}"
         tagged: "{{ [routeros_interfaces_trunk_port, routeros_lan_bridge] | join(',') }}"

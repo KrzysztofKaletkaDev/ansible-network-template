@@ -201,6 +201,20 @@ lockout bez zmiany podejścia znaczy, że przyczyna nie została zrozumiana, nie
   L2 nie padło. Na RB5009 oba są w JEDNEJ podsieci + przeprogramowanie
   switch-chipa. Czysty przebieg na CHR **nie jest dowodem** bezpieczeństwa na
   sprzęcie.
+- **Mostek w tablicy VLAN: `untagged` dla VLAN-u, którego adres siedzi wprost
+  na mostku — i CHR tego NIE wykrywa.** `routeros_lan_address` jest na
+  `bridge-lan` (nietagowany), więc w wierszu VLAN-u `main` `bridge-lan` musi
+  być w `untagged` razem z portami dostępowymi, a w `tagged` zostaje sam trunk.
+  `bridge-lan` w `tagged` dla VLAN-u 1 = po włączeniu `vlan-filtering` CPU nie
+  odbiera tego VLAN-u: porty dostępowe mają link i zero łączności L3
+  (potwierdzone na RB5009; przeniesienie do `untagged` naprawia natychmiast).
+  Dla VLAN-u `servers` `tagged` jest poprawne — CPU dochodzi tam przez
+  sub-interfejs `vlan20-servers`. Reguła: mostek idzie tam, skąd sięga się po
+  adres danego VLAN-u. **CHR tego nie złapie**, bo sesja zarządzania idzie tam
+  przez `ether1` poza mostkiem (`routeros_lan_bridge_ports` na teście to sam
+  `ether3`) — adres mostka nigdy nie jest ścieżką zarządzania, więc przebieg
+  jest czysty mimo martwego VLAN-u 1. Ta sama klasa co „Mechanizm C jest
+  nieodtwarzalny na CHR".
 - **`vlan-filtering: yes` na sprzętowym switch-chipie = najczęstszy
   self-lockout.** Mostek zaczyna egzekwować tablicę VLAN w chwili włączenia —
   niekompletna tablica ucina port. CHR obowiązkowy, mechanizm C.
