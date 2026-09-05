@@ -26,10 +26,20 @@
 # --- LAN bridge ---------------------------------------------------------------
 
 - name: Utwórz mostek LAN
+  # pvid is the VLAN the bridge's own (CPU) port assigns to untagged frames, so
+  # it must match the VLAN whose L3 address sits directly on bridge-lan — VLAN
+  # main, see the VLAN-table task below and ADR-0010. RouterOS defaults a bridge
+  # to pvid=1 and routeros_vlans.main.id is 1, so this is an idempotent no-op
+  # today (api_modify models the same default). It is set explicitly anyway:
+  # move main.id off 1 without it and the untagged CPU path breaks silently the
+  # moment vlan-filtering flips on.
+  # The bridge is created WITHOUT vlan-filtering on purpose — that is the last
+  # task in the role.
   community.routeros.api_modify:
     path: interface bridge
     data:
       - name: "{{ routeros_lan_bridge }}"
+        pvid: "{{ routeros_vlans.main.id }}"
         comment: "Managed by Ansible (routeros_interfaces)"
 
 - name: Podłącz porty dostępowe (untagged) do mostka LAN
