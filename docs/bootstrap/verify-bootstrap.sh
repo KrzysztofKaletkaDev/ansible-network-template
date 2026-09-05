@@ -229,18 +229,33 @@ stage_run() {
     "  ssh ${CHR_USER}@${CHR_IP} '/interface list member print'"
 
   say ""
-  say "pass 3/3: idempotence - this one must report changed=0"
+  say "pass 3/3: idempotence - changed only allowed on the CLAUDE.md idempotency-gate allow-list"
   local out rc
   out="$("${base[@]}" --diff 2>&1)"; rc=$?
   printf '%s\n' "$out"
   [[ $rc -eq 0 ]] || die "third run failed"
 
-  local changed
-  changed="$(printf '%s\n' "$out" | awk '/^[^ ]+ +: +ok=/ {for (i=1;i<=NF;i++) if ($i ~ /^changed=/) {sub(/changed=/,"",$i); print $i}}')"
-  if [[ "$changed" == "0" ]]; then
-    ok "idempotent: changed=0"
+  # CLAUDE.md, "Bramka idempotencji" - only these two tasks may report changed
+  # on a clean third run.
+  local -a allowed_changed=(
+    "Zrób kopię zapasową konfiguracji przed ryzykowną zmianą"
+    "Skonfiguruj forwarder DNS routera"
+  )
+  local unexpected=0 task=""
+  while IFS= read -r line; do
+    if [[ "$line" == TASK\ \[* ]]; then
+      task="${line#TASK [}"; task="${task%%]*}"; task="${task#*: }"
+    elif [[ "$line" == changed:\ * ]]; then
+      if ! printf '%s\n' "${allowed_changed[@]}" | grep -qxF "$task"; then
+        warn "unexpected changed task on third run: $task"
+        unexpected=1
+      fi
+    fi
+  done <<< "$out"
+  if [[ $unexpected -eq 0 ]]; then
+    ok "idempotent: no changed task outside the allow-list"
   else
-    die "third run reported changed=${changed:-?} - not idempotent. Find the churning task in the diff above."
+    die "third run reported changed on a task outside the CLAUDE.md allow-list - see warnings above"
   fi
 
   warn "changed=0 is blind to drift on paths without a primary key (ADR-0009)."
