@@ -409,7 +409,28 @@ otherwise never describes:
 cannot be in two bridges, so "Podłącz porty dostępowe" fails on the first item.
 Tear the `defconf` down first.
 
-### Order matters — the address goes on before the bridge comes off
+**Primary path.** `[winbox]` — over Winbox or MAC-Winbox, one command:
+
+```
+/system reset-configuration no-defaults=yes keep-users=no
+```
+
+This wipes the button's `defconf` back to the same no-address, no-config state
+the [factory-config teardown](#factory-config-teardown-on-the-rb5009) produces
+(`keep-users=no` also drops the `defconf`'s own accounts, if any). The router
+is only reachable via MAC-Winbox from here, exactly as after a factory reset —
+go back to [step 0](#rb5009-first-run-sequence-option-b-port-layout) of the
+main sequence at the top of this file and continue from there.
+
+### Appendix: manual teardown without a reset (only when MAC-Winbox is unavailable)
+
+Use this **only** if MAC-Winbox cannot reach the box — no Neighbors discovery
+path, no adjacent L2 segment — so re-running `reset-configuration` is not an
+option either. It tears the `defconf` down piece by piece instead, over
+whatever address path already reaches the router, rather than dropping to
+no-config and depending on MAC-Winbox to get back in.
+
+#### Order matters — the address goes on before the bridge comes off
 
 `192.168.88.1` lives on the `bridge` interface. Removing that address, or pulling
 your port out of the bridge, drops your session. **Running (c)/(d) before (a) cut
