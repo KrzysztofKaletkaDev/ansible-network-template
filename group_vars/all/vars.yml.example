@@ -46,7 +46,15 @@ routeros_enable_dead_mans_switch: true
 
 # DEFERRED (tags: restrict-api): the address Ansible connects from. The
 # restrict-api run pins the API service to <this>/32. See roles/routeros_common/README.md.
-routeros_controller_ip: "10.0.0.100"
+#
+# MUST be outside routeros_dhcp_pool_ranges.main (below), and held statically by
+# the control node — not leased to it. Inside the pool, DHCP can hand this exact
+# address to some other client, and two rules key off it by src-address: the
+# "control node to switch" accept (that client gets SSH/Winbox/API to the CRS310
+# and Ansible loses it) and, once restrict-api has been run, /ip service api
+# itself — at which point the stray client is the only host allowed to reach the
+# router's API and the control node is locked out.
+routeros_controller_ip: "10.0.0.10"
 
 # DEFERRED (tags: disable-admin): disable the built-in 'admin' account. Only set
 # true after the managed account is confirmed working, and run with --tags disable-admin.
@@ -178,7 +186,10 @@ routeros_dhcp_networks:
   - {vlan: main, interface: "{{ routeros_lan_bridge }}"}
   - {vlan: servers, interface: "{{ routeros_servers_vlan_interface }}"}
 
-# Dynamic pool range per VLAN — must sit outside the static-reservation band.
+# Dynamic pool range per VLAN — must sit outside the static-reservation band,
+# and must NOT contain routeros_controller_ip (see the note there). RouterOS
+# takes this string verbatim, so a comma-separated list works if a hole is ever
+# needed: "10.0.0.50-10.0.0.99,10.0.0.101-10.0.0.240".
 routeros_dhcp_pool_ranges:
   main: "10.0.0.50-10.0.0.240"
   servers: "10.0.20.50-10.0.20.240"

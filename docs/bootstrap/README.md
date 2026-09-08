@@ -376,6 +376,28 @@ it will use afterwards. Set `routeros_controller_ip` to the cabled address for
 the bootstrap runs and change it back once the router is in place, or the
 switch rule points at an address that is no longer yours.
 
+**The production value must sit outside `routeros_dhcp_pool_ranges.main`, and
+the control node must hold it statically rather than lease it.** Inside the
+pool, the DHCP server can hand that exact address to any other client — and both
+consumers above key off it by `src-address`, so the stray client inherits
+SSH/Winbox/API access to the CRS310 while Ansible loses it, and after a
+`restrict-api` run that client becomes the only host allowed to reach the
+router's API. A dynamic lease on the controller address is the warning sign:
+check `/ip dhcp-server lease print` for a **D** flag on it.
+
+Changing it on a live network is a two-step cutover, in this order:
+
+1. `[control node]` give it the new address statically (outside the pool), and
+   confirm it still reaches the router — nothing on the router has moved yet, so
+   this step is reversible on its own.
+2. `[control node]` set `routeros_controller_ip` in the local
+   `group_vars/all/vars.yml`, then re-run so the firewall rule follows.
+
+Doing it in the other order points the switch rule at an address you are not
+using yet, and the CRS310 goes unreachable to Ansible until the laptop catches
+up. (The router itself stays reachable either way until `restrict-api` runs —
+that rule is in the `forward` chain, not `input`.)
+
 ### Symptom: the router pings but SSH and the API are dead
 
 Almost always the interface you are connected through ended up in interface list
