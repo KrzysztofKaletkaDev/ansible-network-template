@@ -242,6 +242,30 @@ lockout bez zmiany podejścia znaczy, że przyczyna nie została zrozumiana, nie
 - **Import klucza SSH konta zarządzającego to krok bootstrap** (plikowy
   `/user/ssh-keys/import`, nie przez API) — `routeros_common` go nie wgrywa.
 
+## Świadome pominięcia (nie „naprawiać" bez pytania)
+
+Rzeczy, które wyglądają jak przeoczenie, a są decyzją. Każda potwierdzona na
+sprzęcie i zostawiona świadomie:
+
+- **`k3s-master` (VM na QNAP-ie, ten sam vswitch co `alma`) siedzi w VLAN-ie
+  `main` na dynamicznym adresie, bez rezerwacji.** Nie ma go w
+  `routeros_dhcp_leases` ani w `routeros_servers_vlan_hosts` i tak ma zostać.
+  Uwaga na przyszłość: `routeros_servers_vlan_hosts` generuje rezerwacje
+  **wyłącznie** na serwerze DHCP VLAN-u `servers`, więc samo dopisanie tam
+  wpisu nic nie da, dopóki NIC maszyny nie trafi do VLAN-u 20 po stronie QNAP-a.
+  Przeniesienie oznacza też przejście przez granicę segmentacji: `drop
+  LAN→SERVERS` odetnie klientów z VLAN-u `main`, jeśli nie dojdzie jawna reguła
+  accept (ADR-0006).
+- **`sfp-sfpplus1` i `sfp-sfpplus2` na CRS310 są członkami mostka (z defconf),
+  ale nie ma ich w `routeros_switch_main_vlan_ports` ani
+  `..._servers_vlan_ports` — po włączeniu `vlan-filtering` są martwe.** Port
+  bez wiersza w tablicy VLAN ma pvid 1, ale nie jest nietagowanym członkiem
+  VLAN-u 1, więc ramki lecą do kosza: link jest, ruchu nie ma. Rola ich **nie**
+  posprząta — `interface bridge port` chodzi z `handle_absent_entries: ignore`,
+  więc członek z defconf zostaje członkiem na zawsze. Zostawione tak celowo;
+  gdy któryś ma zacząć działać, trzeba go dopisać do jednej z list
+  `*_vlan_ports` (a nie tylko podłączyć kabel).
+
 ## Konwencje
 
 - Nazwy tasków Ansible (`name:`) — po polsku. Komentarze w kodzie (`#`) — po
