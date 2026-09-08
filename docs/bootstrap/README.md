@@ -556,10 +556,22 @@ trunk. Bootstrap it before it goes into place:
    /interface bridge set bridge vlan-filtering=no
    /interface vlan add name=vlan20-servers interface=bridge vlan-id=20
    /ip address add address=<routeros_switch_mgmt_address> interface=vlan20-servers
-   /ip route add dst-address=0.0.0.0/0 gateway=<servers VLAN gateway>
+   /ip route add dst-address=0.0.0.0/0 gateway=<servers VLAN gateway> comment="ansible:default-route"
    /ip dhcp-client remove [find interface=bridge]
    /ip service enable api
    ```
+
+   > **The `comment` on that route is not decoration — leave it out and you get
+   > two default routes.** `ip route` has no primary key in `api_modify`, so
+   > `routeros_switch` matches on full entry content: an uncommented route does
+   > not match the one the role declares, the role adds its own, and the paired
+   > cleanup task only ever removes entries already carrying
+   > `ansible:default-route` (ADR-0009). The result is two active `0.0.0.0/0`
+   > routes at distance 1 — RouterOS ECMPs across them (`+` flag) and half the
+   > switch's outbound traffic takes a path you did not intend. Confirmed on
+   > hardware. Adding the comment here makes the role **adopt** this exact
+   > entry on its first run instead of duplicating it. The string must match
+   > the role byte for byte.
 
 3. Confirm you can log in as `netadmin` over that address.
 4. **Only now** move the switch into place, cable the trunk, and let Ansible
