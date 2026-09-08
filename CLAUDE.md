@@ -88,16 +88,20 @@ reset do zera i konfiguracja od nowa przez WinBox. `routeros_interfaces` i
 ## Bramka idempotencji
 
 Trzeci przebieg na sprzęcie (krok 9 w `docs/bootstrap/README.md`) musi być
-`changed=0`, poza zadaniami, którym **wolno** zgłosić `changed` nawet wtedy:
+`changed=0`, z **jednym** wyjątkiem:
 
-- **`safety_snapshot.yml`** (wciągany przez `routeros_interfaces` i
-  `routeros_firewall`) — task backupu ma `changed_when: true` na stałe, bo API
-  nie zwraca nic użytecznego dla `/system backup save`.
-- **`/ip dns` w `routeros_dns`, dopóki `alma` (ADR-0008) nie stoi pod swoim
-  adresem w VLAN-ie `servers`.** Netwatch widzi
-  `routeros_dns_primary_upstream` jako nieosiągalny, przełącza `servers` na
-  fallback co przebieg, a kolejny przebieg przełącza z powrotem. Ustaje, gdy
-  `alma` faktycznie odpowiada na tym adresie.
+- **Task backupu w `safety_snapshot.yml`** — ma `changed_when: true` na stałe,
+  bo API nie zwraca nic użytecznego dla `/system backup save`. Ile razy się
+  pojawi, zależy od urządzenia: na **RB5009 dwa razy** (`routeros_interfaces`
+  i `routeros_firewall` wciągają go osobno), na **CRS310 raz** (tylko
+  `routeros_switch`; dead man's switch jest tam włączony). Na CHR ani razu —
+  `routeros_enable_dead_mans_switch: false` w `group_vars/test`.
+
+`/ip dns` **nie jest już wyjątkiem**: `alma` (ADR-0008) odpowiada pod swoim
+adresem w VLAN-ie `servers`, Netwatch pokazuje `up` i trzeci przebieg nie rusza
+już tego taska. Jeśli `changed` tam wróci, znaczy to, że resolver przestał
+odpowiadać i Netwatch przełączył upstream na fallback — to realny sygnał
+awarii, nie szum do przemilczenia.
 
 Każdy inny `changed` na trzecim przebiegu to realny dryf — zatrzymaj się i
 znajdź go w `--diff`, zanim pójdziesz dalej.
