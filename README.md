@@ -25,15 +25,15 @@ graph TD
     subgraph rb5009 ["RB5009 edge router (RouterOS)"]
         PPP["pppoe-out1 (MTU 1492)"] -->|masquerade| NAT
         NAT["ip firewall nat / filter"] --> RDNS["/ip dns forwarder<br/>(gateway address)"]
-        WG["wg0 · WireGuard 443/udp<br/>10.100.0.0/24"] --> NAT
-        BR["bridge-lan · vlan-filtering<br/>VLAN main 10.0.0.0/24"]
+        WG["wg0 · WireGuard 443/udp<br/>10.100.0.0/24 · MTU 1412"] --> NAT
+        BR["bridge-lan · vlan-filtering<br/>VLAN main (id 1) · 10.0.0.0/24"]
         VS["vlan-servers<br/>VLAN 20 · 10.0.20.0/24"]
         NAT --- BR
         NAT --- VS
     end
 
     BR -->|access ports| Wifi[Wi-Fi APs / LAN devices]
-    BR ===|trunk: tagged main + servers| CRS
+    BR ===|"trunk: tagged VLAN 1 (main) + VLAN 20 (servers)"| CRS
 
     subgraph crs310 ["CRS310 switch (RouterOS)"]
         CRS["bridge · mirrored VLAN table"]
@@ -43,6 +43,7 @@ graph TD
     CRS -->|access · VLAN servers| NAS["NAS: native QTS + 'alma' VM<br/>(ad-blocking DNS resolver)"]
 
     RDNS -.->|forwards to| NAS
+    RDNS -.->|"netwatch fallback · no ad-blocking"| PUB([public resolvers])
     VS -.->|"redirect :53 · drop DoT/DoH · segment"| NAS
 ```
 
@@ -53,6 +54,11 @@ graph TD
 - `main` → `servers` is default-deny with three explicit accepts; `servers` →
   `main` is unrestricted (the NVR dials out to the cameras)
   ([ADR-0006](docs/adr/0006-server-vlan-segmentation.md)).
+- The RB5009 ↔ CRS310 trunk carries **both** VLANs tagged — VLAN `main` (id 1)
+  as well as VLAN `servers` (id 20), on both sides of the link. VLAN 1 being
+  tagged rather than untagged there is why a factory-default switch cannot be
+  reached over the trunk and has to be bootstrapped on a direct cable
+  (see "One-time bootstrap" below).
 
 ---
 
