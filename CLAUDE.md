@@ -241,6 +241,24 @@ lockout bez zmiany podejścia znaczy, że przyczyna nie została zrozumiana, nie
   zawężać do RTSP/kamer bez pytania.
 - **Import klucza SSH konta zarządzającego to krok bootstrap** (plikowy
   `/user/ssh-keys/import`, nie przez API) — `routeros_common` go nie wgrywa.
+- **Wyjątek adresowy kiosku ściany kamer stoi na dwóch niezmiennikach TEGO
+  repo.** W `ansible-homelab-template` Caddy wpuszcza kiosk bez hasła po jego
+  adresie źródłowym (`camera_wall_trusted_ips`, ADR-0012 tam; ADR-0002
+  w `ansible-kiosk-template`), a adres przypina rezerwacja
+  `kiosk-kamery` w `routeros_dhcp_leases`. To działa wyłącznie dlatego, że
+  (1) ruch między VLAN-ami NIE jest maskaradowany — `masquerade` jest tylko na
+  wyjściu PPPoE — i (2) LAN nie ma IPv6. Skutki zmiany:
+  - maskarada między segmentami → Caddy widzi wszystkich klientów pod adresem
+    routera, kiosk traci dostęp i prosi o hasło;
+  - IPv6 w LAN → kiosk może łączyć się po IPv6, którego wyjątek nie obejmuje,
+    i też prosi o hasło.
+
+  Oba skutki są same w sobie bezpieczne (zamykają, nie otwierają).
+  NIEBEZPIECZNA jest błędna naprawa: dopisanie do zaufanych adresu routera
+  albo całego prefiksu otwiera podgląd kamer bez hasła dla wszystkich.
+  Właściwa naprawa to aktualizacja wyjątku do nowego adresu kiosku — nigdy
+  jego poszerzenie. Przy każdej zmianie NAT, IPv6 albo tej rezerwacji
+  zajrzyj do ADR-0012 w homelab.
 
 ## Świadome pominięcia (nie „naprawiać" bez pytania)
 
