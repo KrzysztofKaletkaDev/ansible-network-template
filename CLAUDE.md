@@ -149,7 +149,7 @@ lockout bez zmiany podejścia znaczy, że przyczyna nie została zrozumiana, nie
   (`routeros_qnap_native_ip`) i VM „alma" (`routeros_alma_ip`), każdy własny
   adres w VLAN-ie serwerowym. `routeros_servers_vlan_hosts` MUSI zawierać wpisy
   `qnap-native` i `alma` — `routeros_dhcp` to asserta.
-- ADR-y: `docs/adr/` (0001–0010, wszystkie `Accepted`). Każdy opisuje decyzję
+- ADR-y: `docs/adr/` (0001–0011, wszystkie `Accepted`). Każdy opisuje decyzję
   już obowiązującą w kodzie.
 
 ## Pułapki tego repo

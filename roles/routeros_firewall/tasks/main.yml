@@ -130,10 +130,18 @@
       # anti-DoT: block :853 to the internet from the LAN.
       - {chain: forward, action: drop, in-interface-list: LAN, out-interface: "{{ routeros_pppoe_interface }}",
          protocol: tcp, dst-port: "853", comment: "ansible: fwd drop DoT"}
-      # LAN -> SERVERS: three explicit accepts, then a drop (ADR-0006).
+      # LAN -> SERVERS: explicit accepts, then a drop (ADR-0006). Order is the
+      # list order (ensure_order); every accept must stay above the drop.
       - {chain: forward, action: accept, in-interface-list: LAN, out-interface-list: SERVERS,
          dst-address: "{{ routeros_alma_ip }}", protocol: tcp, dst-port: "80,443",
          comment: "ansible: fwd accept web to alma"}
+      # WebRTC media from VLAN main straight to go2rtc on alma; it does not
+      # pass the reverse proxy. Main subnet on the main bridge only — not the
+      # WireGuard peers (wg0 is in LAN, hence no in-interface-list). ADR-0011
+      # here, and ADR-0011 in ansible-homelab-template.
+      - {chain: forward, action: accept, in-interface: "{{ routeros_lan_bridge }}", out-interface-list: SERVERS,
+         src-address: "{{ routeros_vlans.main.subnet }}", dst-address: "{{ routeros_alma_ip }}",
+         protocol: udp, dst-port: "8555", comment: "ansible: fwd accept main WebRTC to alma"}
       - {chain: forward, action: accept, in-interface-list: LAN, out-interface-list: SERVERS,
          src-address-list: qnap-native-access, dst-address: "{{ routeros_qnap_native_ip }}",
          protocol: tcp, dst-port: "443", comment: "ansible: fwd accept native QTS"}

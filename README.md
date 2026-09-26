@@ -51,9 +51,11 @@ graph TD
   which forwards to the ad-blocking resolver; a `tool netwatch` entry swings the
   upstream to public resolvers if that host goes down
   ([ADR-0004](docs/adr/0004-routeros-as-sole-advertised-dns-resolver.md)).
-- `main` → `servers` is default-deny with three explicit accepts; `servers` →
+- `main` → `servers` is default-deny with four explicit accepts; `servers` →
   `main` is unrestricted (the NVR dials out to the cameras)
-  ([ADR-0006](docs/adr/0006-server-vlan-segmentation.md)).
+  ([ADR-0006](docs/adr/0006-server-vlan-segmentation.md)). The fourth is UDP
+  8555 to alma for go2rtc WebRTC
+  ([ADR-0011](docs/adr/0011-go2rtc-webrtc-udp-exception.md)).
 - The RB5009 ↔ CRS310 trunk carries **both** VLANs tagged — VLAN `main` (id 1)
   as well as VLAN `servers` (id 20), on both sides of the link. VLAN 1 being
   tagged rather than untagged there is why a factory-default switch cannot be
@@ -118,7 +120,7 @@ graph TD
 │   ├── switches/vault.yml.example # switch secrets — a different password
 │   └── test/{vars,vault}.yml.example
 ├── docs/
-│   ├── adr/                       # Architecture Decision Records (0001–0010)
+│   ├── adr/                       # Architecture Decision Records (0001–0011)
 │   └── bootstrap/                 # chr-test-vm.sh + the one-time hardware bootstrap
 └── roles/
     ├── routeros_common/           # identity, time, account, service hardening

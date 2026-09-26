@@ -2,7 +2,8 @@
 
 ## Status
 
-Accepted
+Accepted. A fourth exception (UDP 8555 to alma, for go2rtc WebRTC) is
+added by ADR-0011.
 
 ## Context
 

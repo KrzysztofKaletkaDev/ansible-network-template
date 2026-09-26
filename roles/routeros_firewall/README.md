@@ -2,7 +2,8 @@
 
 The LAN firewall. Runs only where `routeros_device_class == 'edge'`. Implements
 **ADR-0004** (DNS interception / anti-DoH-DoT), **ADR-0006** (main ↔ servers
-segmentation) and **ADR-0008** (the QNAP as two endpoints).
+segmentation), **ADR-0008** (the QNAP as two endpoints) and **ADR-0011** (UDP
+8555 to alma for go2rtc WebRTC).
 
 - `ip firewall address-list` — the lists in `routeros_firewall_address_lists`
   (`doh-resolvers`, `doh-exempt`, `dns-nat-exempt`, `qnap-native-access`,
@@ -60,7 +61,11 @@ Then test **intent**, not rule presence, from a second VM on the CHR LAN:
   is dropped unless the client is in `qnap-native-access`;
 - a third VM standing in for a server VLAN host: `server → client` passes
   (SERVERS → LAN unrestricted); `client → server` is dropped;
-- `/ip firewall filter print` — confirm the **order**, not just the set.
+- `client (VLAN main) → routeros_alma_ip` UDP `:8555` passes; UDP to another
+  port on alma, or `:8555` to another server-VLAN host, is dropped;
+- `/ip firewall filter print` — confirm the **order**, not just the set: every
+  `fwd accept … alma` / `native QTS` / `wg-trusted` / `control node` rule sits
+  above `fwd drop LAN to SERVERS`.
 - hairpin: a VM on the server VLAN with a hardcoded external resolver still
   resolves (the `redirect` should make this work without an extra `srcnat`).
 
